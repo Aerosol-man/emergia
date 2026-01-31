@@ -10,6 +10,9 @@ export class Renderer {
     private stateBuffer: React.MutableRefObject<SimulationState[]>;
     private serverBounds: [number, number] | null = null;
 
+    // Animation State
+    private flashEvents = new Map<number, number>(); // agentId -> timestamp
+    private readonly FLASH_DURATION = 300; // ms
 
     // Scales
     private colorScale = d3.scaleLinear<string>()
@@ -70,44 +73,38 @@ export class Renderer {
             this.serverBounds = latest.bounds;
         }
 
-        // MVP Interpolation:
-        // We assume 30Hz server ticks (33ms).
-        // A robust system would sync clocks. Here we just smooth between the last two known states.
-        // We actually want to render "past" state to be smooth.
-        // Render time = current time - buffering delay (e.g. 100ms)
+        // Detect trade events for animations
+        // We compare the previous known state of agents with the new state
+        // For efficiency in this loop, we check against `this.agents` (which holds the previous interpolated state)
+        // But `this.agents` might be re-ordered or incomplete if agents die/spawn.
+        // However, assuming ID stability:
+        const currentAgentMap = new Map(this.agents.map(a => [a.id, a]));
 
-        // For this hackathon/MVP, we'll use a simpler "Catch-up" lerp
-        // or just interpolate blindly 50% for now as a "Low Pass Filter" on position
-        // BUT, proper interpolation requires T.
+        // Update agents with smoothing
+        this.agents = latest.agents.map((targetAgent) => {
+            const currentAgent = currentAgentMap.get(targetAgent.id);
 
-        // Let's implement immediate-mode interpolation:
-        // We always interpolate between previous and latest based on how much time passed?
-        // No, that requires knowing WHEN they arrived.
+            if (currentAgent) {
+                // Detect trade count increase
+                if (targetAgent.tradeCount > currentAgent.tradeCount) {
+                    // Trigger flash
+                    this.flashEvents.set(targetAgent.id, performance.now());
+                }
 
-        // Let's just do a simple smoothing:
-        // Current Agent Position += (Target Position - Current Position) * 0.1
-        // This is "Exponential Moving Average" smoothing. simple and effective for visuals.
+                // Smooth position
+                return {
+                    ...targetAgent,
+                    x: currentAgent.x + (targetAgent.x - currentAgent.x) * 0.15,
+                    y: currentAgent.y + (targetAgent.y - currentAgent.y) * 0.15
+                };
+            }
 
-        // ...Actually, the `interpolateAgent` function is designed for Lerp.
-        // Let's just fix the agents to 'latest' for the MVP to ensure correctness first,
-        // then add EMA smoothing if it's jittery. The user asked for interpolation logic.
-
-        // Let's implement the EMA smoothing approach as it's more robust to network jitter than strict time-synced lerp.
-        this.agents = latest.agents.map((targetAgent, index) => {
-            const currentAgent = this.agents[index];
-            if (!currentAgent) return targetAgent; // New agent? snap to it.
-
-            // Smooth X and Y
-            // Factor 0.1 means we move 10% of the way there per frame.
-            // @ 60fps, this converges very fast but filters high-freq jitter.
-            return {
-                ...targetAgent,
-                x: currentAgent.x + (targetAgent.x - currentAgent.x) * 0.15,
-                y: currentAgent.y + (targetAgent.y - currentAgent.y) * 0.15
-            };
+            // New agent? snap to it.
+            return targetAgent;
         });
 
-
+        // Prune old flashes occasionally or just let them expire in draw
+        // (Clean up happen in draw for visual correctness)
     }
 
     // The agents property is now derived from the stateBuffer in update()
@@ -116,29 +113,15 @@ export class Renderer {
 
     private draw() {
         const { ctx, width, height } = this;
+        const now = performance.now();
 
-        // Trail Effect: Instead of clearing, we draw a semi-transparent rectangle
-        // This causes previous frames to fade out slowly, creating a trail.
-        ctx.fillStyle = 'rgba(10, 10, 15, 0.2)'; // --color-bg-primary with opacity
+        // Trail Effect
+        ctx.fillStyle = 'rgba(10, 10, 15, 0.2)';
         ctx.fillRect(0, 0, width, height);
 
         // Draw Agents
         for (const agent of this.agents) {
-            // Visual Intelligence:
-            // 1. Size = Base (3px) + Trade Activity (capped at +5px)
-            const radius = 3 + Math.min(agent.tradeCount * 0.5, 5);
-
-            // 2. Color = Trust Scale (Red -> Yellow -> Green)
-            const color = this.colorScale(agent.trust);
-
-            // 3. Glow Effect for high trust agents
-            if (agent.trust > 0.8) {
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = color;
-            } else {
-                ctx.shadowBlur = 0;
-            }
-
+            // Calculate screen position
             let cx = agent.x;
             let cy = agent.y;
 
@@ -147,10 +130,48 @@ export class Renderer {
                 cy = (agent.y / this.serverBounds[1]) * height;
             }
 
+            // 1. Size
+            const radius = 3 + Math.min(agent.tradeCount * 0.5, 5);
+
+            // 2. Color
+            const color = this.colorScale(agent.trust);
+
+            // 3. Glow Effect
+            if (agent.trust > 0.8) {
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = color;
+            } else {
+                ctx.shadowBlur = 0;
+            }
+
+            // Draw Agent Body
             ctx.beginPath();
             ctx.arc(cx, cy, radius, 0, Math.PI * 2);
             ctx.fillStyle = color;
             ctx.fill();
+
+            // 4. Flash Animation
+            if (this.flashEvents.has(agent.id)) {
+                const startTime = this.flashEvents.get(agent.id)!;
+                const elapsed = now - startTime;
+
+                if (elapsed < this.FLASH_DURATION) {
+                    const progress = elapsed / this.FLASH_DURATION; // 0 to 1
+                    const flashOpacity = (1.0 - progress) * 0.4; // Reduced brightness (max 0.4)
+                    const flashRadius = radius * (1.5 + progress); // Expand slightly
+
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, flashRadius, 0, Math.PI * 2);
+                    ctx.fillStyle = `rgba(255, 255, 255, ${flashOpacity})`;
+                    ctx.shadowBlur = 15;
+                    ctx.shadowColor = 'white';
+                    ctx.fill();
+                    ctx.shadowBlur = 0; // Reset
+                } else {
+                    // Expired
+                    this.flashEvents.delete(agent.id);
+                }
+            }
         }
 
         // Reset shadow for text

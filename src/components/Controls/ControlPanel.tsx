@@ -9,7 +9,6 @@ interface ControlPanelProps {
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
-    // Local state for UI responsiveness before sending to socket
     const [config, setConfig] = useState<SimulationConfig>({
         agentCount: 500,
         trustDecay: 0.05,
@@ -17,20 +16,17 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
         speedMultiplier: 1.0
     });
 
-    // Simple debouncer could go here, but for now we send updates directly
-    // Ideally use useDebounce or similar if high traffic
-
     const handleChange = (key: keyof SimulationConfig, value: number) => {
         const newConfig = { ...config, [key]: value };
         setConfig(newConfig);
         sendAction({ type: 'update_config', payload: { [key]: value } });
     };
 
-    const [isRunning, setIsRunning] = useState(true);
+    const [isRunning, setIsRunning] = useState(false);
 
     const handleStart = () => {
         setIsRunning(true);
-        sendAction({ type: 'start' });
+        sendAction({ type: 'start', payload: config });
     };
 
     const handlePause = () => {
@@ -39,6 +35,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
     };
 
     const handleReset = () => {
+        setIsRunning(false);
         sendAction({ type: 'reset' });
     };
 

@@ -120,5 +120,6 @@ class SimulationState:
                 "tick": self.tick,
                 "agents": [a.to_minimal_dict() for a in self.agents.values()],
                 "metrics": dict(self.metrics),
+                "bounds": self.bounds,
             },
         }

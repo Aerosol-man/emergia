@@ -10,11 +10,7 @@ const createMockState = (tick: number, config: SimulationConfig, width: number, 
     const speed = 0.05 * config.speedMultiplier;
 
     for (let i = 0; i < count; i++) {
-        // Simple circular motion for testing interpolation
-        // We use tick * speed to control velocity
         const angle = (tick * speed) + (i * (Math.PI * 2 / count));
-
-        // Radius expands with Trust Quota just to visualize it changing
         const radius = 100 + (Math.sin(tick * 0.01 + i) * 50) + (config.trustQuota * 50);
 
         agents.push({
@@ -23,12 +19,11 @@ const createMockState = (tick: number, config: SimulationConfig, width: number, 
             y: (height / 2) + Math.sin(angle) * radius,
             vx: 0,
             vy: 0,
-            // Trust affected by decay
             trust: Math.max(0, ((Math.sin(tick * 0.02 + i) + 1) / 2) - config.trustDecay),
             trustQuota: config.trustQuota,
             skillPossessed: 0,
             skillNeeded: 0,
-            tradeCount: Math.floor(Math.random() * 5) // Static for now
+            tradeCount: Math.floor(Math.random() * 5)
         });
     }
 
@@ -47,10 +42,7 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
     const [isConnected, setIsConnected] = useState(false);
     const [lastMetrics, setLastMetrics] = useState<SimulationState['metrics'] | null>(null);
 
-    // We store states in a buffer for interpolation
-    // Buffer = [Older State, Newer State]
     const stateBuffer = useRef<SimulationState[]>([]);
-
     const socketRef = useRef<WebSocket | null>(null);
 
     // Mock Mode Logic
@@ -61,7 +53,19 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
         trustQuota: 0.3,
         speedMultiplier: 1.0
     });
-    const isMock = true; // Hardcoded for now until real backend is ready
+    const isMock = false;
+
+    const handleStateUpdate = useCallback((newState: SimulationState) => {
+        stateBuffer.current.push(newState);
+
+        if (stateBuffer.current.length > 3) {
+            stateBuffer.current.shift();
+        }
+
+        if (newState.tick % 10 === 0) {
+            setLastMetrics(newState.metrics);
+        }
+    }, []);
 
     useEffect(() => {
         if (isMock) {
@@ -71,10 +75,9 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
 
             mockIntervalRef.current = window.setInterval(() => {
                 tick++;
-                // Assume 800x600 for mock generation, renderer will scale visualization
                 const newState = createMockState(tick, mockConfigRef.current, 800, 600);
                 handleStateUpdate(newState);
-            }, 33); // ~30Hz
+            }, 33);
 
             return () => {
                 if (mockIntervalRef.current) clearInterval(mockIntervalRef.current);
@@ -82,41 +85,68 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
         }
 
         // Real WebSocket Implementation
-        const ws = new WebSocket(url);
-        socketRef.current = ws;
+        let cancelled = false;
+        let ws: WebSocket | null = null;
 
-        ws.onopen = () => setIsConnected(true);
-        ws.onclose = () => setIsConnected(false);
-        ws.onmessage = (event) => {
-            try {
-                const message: WebSocketMessage = JSON.parse(event.data);
-                if (message.type === 'state_update') {
-                    handleStateUpdate(message.payload);
+        const timeoutId = setTimeout(() => {
+            if (cancelled) return;
+
+            ws = new WebSocket(url);
+            socketRef.current = ws;
+
+            ws.onopen = () => {
+                if (cancelled) {
+                    ws?.close();
+                    return;
                 }
-            } catch (e) {
-                console.error('Failed to parse WS message', e);
+                console.log('[WS] Connected');
+                setIsConnected(true);
+            };
+
+            ws.onclose = (e) => {
+                if (cancelled) return;
+                console.log('[WS] Disconnected', e.code, e.reason);
+                setIsConnected(false);
+            };
+
+            ws.onerror = (err) => {
+                if (cancelled) return;
+                console.error('[WS] Error:', err);
+            };
+
+            ws.onmessage = (event) => {
+                if (cancelled) return;
+                try {
+                    const data = JSON.parse(event.data);
+
+                    // DEBUG: log first few messages
+                    if (!stateBuffer.current.length || stateBuffer.current.length < 3) {
+                        console.log('[WS] Received:', data.type, 'agents:', data.payload?.agents?.length);
+                    }
+
+                    // The backend sends { type: "state_update", payload: { tick, agents, metrics, bounds } }
+                    if (data.type === 'state_update' && data.payload) {
+                        handleStateUpdate(data.payload);
+                    }
+                } catch (e) {
+                    console.error('[WS] Failed to parse message', e);
+                }
+            };
+        }, 50); // Small delay to avoid React Strict Mode double-mount issue
+
+        return () => {
+            cancelled = true;
+            clearTimeout(timeoutId);
+            if (ws) {
+                ws.onopen = null;
+                ws.onclose = null;
+                ws.onerror = null;
+                ws.onmessage = null;
+                ws.close();
             }
+            socketRef.current = null;
         };
-
-        return () => ws.close();
-    }, [url]);
-
-    const handleStateUpdate = useCallback((newState: SimulationState) => {
-        // Push to buffer
-        stateBuffer.current.push(newState);
-
-        // Keep buffer small (max 3 states: [Old, Mid, New])
-        if (stateBuffer.current.length > 3) {
-            stateBuffer.current.shift();
-        }
-
-        // Update React State for UI (throttled naturally by how often we call this? No, this runs 30hz)
-        // We should verify performance of this. ideally only update metrics every second.
-        // For now, let's just set it.
-        if (newState.tick % 10 === 0) {
-            setLastMetrics(newState.metrics);
-        }
-    }, []);
+    }, [url, handleStateUpdate]);
 
     const sendAction = useCallback((action: ClientAction) => {
         if (isMock) {
@@ -128,7 +158,6 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
                 if (mockIntervalRef.current) clearInterval(mockIntervalRef.current);
             }
             if (action.type === 'start') {
-                // Restart loop (simplified for mock)
                 if (mockIntervalRef.current) clearInterval(mockIntervalRef.current);
                 let tick = 0;
                 mockIntervalRef.current = window.setInterval(() => {
@@ -139,13 +168,20 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
             }
             return;
         }
-        socketRef.current?.send(JSON.stringify(action));
+
+        const socket = socketRef.current;
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            console.log('[WS] Sending:', action);
+            socket.send(JSON.stringify(action));
+        } else {
+            console.warn('[WS] Cannot send, socket not open. readyState:', socket?.readyState);
+        }
     }, [isMock, handleStateUpdate]);
 
     return {
         isConnected,
         lastMetrics,
-        stateBuffer, // Expose buffer to Renderer
+        stateBuffer,
         sendAction
     };
 };

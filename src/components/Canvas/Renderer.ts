@@ -8,6 +8,7 @@ export class Renderer {
     private height: number;
     private animationId: number | null = null;
     private stateBuffer: React.MutableRefObject<SimulationState[]>;
+    private serverBounds: [number, number] | null = null;
 
 
     // Scales
@@ -65,6 +66,9 @@ export class Renderer {
         }
 
         const latest = buffer[buffer.length - 1];
+        if (latest.bounds) {
+            this.serverBounds = latest.bounds;
+        }
 
         // MVP Interpolation:
         // We assume 30Hz server ticks (33ms).
@@ -135,8 +139,16 @@ export class Renderer {
                 ctx.shadowBlur = 0;
             }
 
+            let cx = agent.x;
+            let cy = agent.y;
+
+            if (this.serverBounds) {
+                cx = (agent.x / this.serverBounds[0]) * width;
+                cy = (agent.y / this.serverBounds[1]) * height;
+            }
+
             ctx.beginPath();
-            ctx.arc(agent.x, agent.y, radius, 0, Math.PI * 2);
+            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
             ctx.fillStyle = color;
             ctx.fill();
         }

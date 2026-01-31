@@ -11,15 +11,22 @@ class ConnectionManager:
         
     async def connect(self, websocket: WebSocket):
         """Accept and register new WebSocket connection"""
-        pass
+        await websocket.accept()
+        self.active_connections.append(websocket)
+        self.client_data[websocket] = {}
+        print(f"WebSocket connected. Active connections: {len(self.active_connections)}")
         
     def disconnect(self, websocket: WebSocket):
         """Remove WebSocket connection"""
-        pass
+        if websocket in self.active_connections:
+            self.active_connections.remove(websocket)
+        if websocket in self.client_data:
+            del self.client_data[websocket]
+        print(f"WebSocket disconnected. Active connections: {len(self.active_connections)}")
     
     async def send_personal_message(self, message: dict, websocket: WebSocket):
         """Send message to specific client"""
-        await websocket.send_json(json.dumps(message))
+        await websocket.send_json(message)
     
     async def broadcast(self, message: dict):
         """Broadcast message to all connected clients"""

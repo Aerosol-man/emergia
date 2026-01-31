@@ -10,7 +10,7 @@ export interface Agent {
     skillNeeded: number;
     tradeCount: number;
 }
-  
+
 export interface SimulationState {
     tick: number;
     agents: Agent[];
@@ -19,27 +19,28 @@ export interface SimulationState {
         giniCoefficient: number;
         tradeSuccessRate: number;
     };
+    bounds?: [number, number]; // [width, height] from server
 }
-  
+
 export interface SimulationConfig {
     agentCount: number;
     trustDecay: number;
     trustQuota: number;
     speedMultiplier: number;
 }
-  
+
 /**
 * Message format from WebSocket
 */
-export type WebSocketMessage = 
-| { type: 'state_update'; payload: SimulationState }
-| { type: 'event'; payload: { name: string; details: any } };
+export type WebSocketMessage =
+    | { type: 'state_update'; payload: SimulationState }
+    | { type: 'event'; payload: { name: string; details: any } };
 
 /**
 * Message format to WebSocket
 */
-export type ClientAction = 
-| { type: 'start' }
-| { type: 'pause' }
-| { type: 'reset' }
-| { type: 'update_config'; payload: Partial<SimulationConfig> };
+export type ClientAction =
+    | { type: 'start' }
+    | { type: 'pause' }
+    | { type: 'reset' }
+    | { type: 'update_config'; payload: Partial<SimulationConfig> };

@@ -112,12 +112,10 @@ class SimulationEngine:
         if self.collision_detector:
             if hasattr(self.collision_detector, "detect_collisions"):
                 try:
-                    pairs = self.collision_detector.detect_collisions(agents_list, self.collision_radius)
+                    pairs = self.collision_detector.detect_collisions(agents_dict)
                 except TypeError:
-                    try:
-                        pairs = self.collision_detector.detect_collisions(agents_list)
-                    except TypeError:
-                        pairs = self.collision_detector.detect_collisions(agents_dict)
+                    # fallback if signature is different
+                    pairs = []
 
         # metrics counters
         total_collisions = len(pairs)

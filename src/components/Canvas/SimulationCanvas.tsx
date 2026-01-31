@@ -19,19 +19,24 @@ const SimulationCanvas: React.FC = () => {
         rendererRef.current = new Renderer(canvasRef.current, clientWidth, clientHeight, stateBuffer);
         rendererRef.current.start();
 
-        // handle resize
-        const handleResize = () => {
-            if (containerRef.current && rendererRef.current) {
-                const { clientWidth, clientHeight } = containerRef.current;
-                rendererRef.current.resize(clientWidth, clientHeight);
+        // handle resize using ResizeObserver
+        const resizeObserver = new ResizeObserver((entries) => {
+            for (const entry of entries) {
+                if (entry.target === containerRef.current && rendererRef.current) {
+                    const { width, height } = entry.contentRect;
+                    // Ensure we don't resize to 0 causing issues
+                    if (width > 0 && height > 0) {
+                        rendererRef.current.resize(width, height);
+                    }
+                }
             }
-        };
+        });
 
-        window.addEventListener('resize', handleResize);
+        resizeObserver.observe(containerRef.current);
 
         return () => {
             rendererRef.current?.stop();
-            window.removeEventListener('resize', handleResize);
+            resizeObserver.disconnect();
         };
     }, []);
 

@@ -3,10 +3,14 @@ from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from services.simulation import SimulationEngine
 from services.websocket_manager import ConnectionManager
+import asyncio
 
 router = APIRouter()
 sim_engine = SimulationEngine()
 ws_manager = ConnectionManager()
+
+# Background task reference
+simulation_task = None
 
 class StartParams(BaseModel):
     num_agents: int
@@ -18,15 +22,51 @@ class ParameterUpdate(BaseModel):
     trust_quota: float = None
     add_bad_actors: int = None
 
+
+async def simulation_loop():
+    """Background task that runs the simulation at ~30Hz"""
+    while sim_engine.running:
+        sim_engine.step()
+        # Broadcast state to all connected clients
+        if sim_engine.should_broadcast() and ws_manager.get_connection_count() > 0:
+            state = sim_engine.get_broadcast_state()
+            await ws_manager.broadcast(state)
+        await asyncio.sleep(1/30)  # ~30 FPS
+
+
+async def broadcast_state(state_dict: dict):
+    """Callback to broadcast state to all connected WebSocket clients"""
+    await ws_manager.broadcast(state_dict)
+
+
 @router.post("/simulation/start")
 async def start_simulation(params: StartParams):
     """Start simulation with given parameters"""
+    global simulation_task
+    
+    # Stop any existing simulation
+    if simulation_task and not simulation_task.done():
+        sim_engine.pause()
+        simulation_task.cancel()
+        try:
+            await simulation_task
+        except asyncio.CancelledError:
+            pass
+    
+    # Set up broadcast callback
+    sim_engine.set_broadcast_callback(broadcast_state)
+    
+    # Start simulation
     sim_engine.start(
         num_agents=params.num_agents,
         trust_decay=params.trust_decay,
         trust_quota=params.trust_quota
     )
-    router.logger.info(f"Simulation started with {params.num_agents} agents.")
+    
+    # Start background loop
+    simulation_task = asyncio.create_task(simulation_loop())
+    
+    print(f"Simulation started with {params.num_agents} agents.")
     return {"status": "simulation started"}
 
 @router.get("/simulation/state")
@@ -45,29 +85,61 @@ async def pause_simulation():
 @router.post("/simulation/reset")
 async def reset_simulation():
     """Reset simulation to initial state"""
+    global simulation_task
     sim_engine.reset()
+    if simulation_task and not simulation_task.done():
+        simulation_task.cancel()
     return {"status": "simulation reset"}
 
 @router.post("/simulation/parameters")
 async def update_parameters(params: ParameterUpdate):
     """Update simulation parameters on-the-fly"""
-    sim_engine.update_parameters(
-        trust_decay=params.trust_decay,
-        trust_quota=params.trust_quota,
-        add_bad_actors=params.add_bad_actors
-    )
+    update_dict = {}
+    if params.trust_decay is not None:
+        update_dict['trust_decay'] = params.trust_decay
+    if params.trust_quota is not None:
+        update_dict['trust_quota'] = params.trust_quota
+    sim_engine.update_parameters(update_dict)
+    return {"status": "parameters updated"}
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time state updates"""
     await ws_manager.connect(websocket)
-    while True:
-        try:
-            await websocket.receive_json()  # Keep connection alive
-            await ws_manager.send_personal_message(sim_engine.get_broadcast_state(), websocket)
-        except WebSocketDisconnect:
-            ws_manager.disconnect(websocket)
-            break
+    try:
+        while True:
+            # Keep connection alive by receiving any messages (heartbeat or commands)
+            data = await websocket.receive_json()
+            
+            # Handle client commands
+            if isinstance(data, dict):
+                cmd_type = data.get("type")
+                if cmd_type == "start":
+                    # Trigger start via the same logic
+                    params = data.get("payload", {})
+                    sim_engine.set_broadcast_callback(broadcast_state)
+                    sim_engine.start(
+                        num_agents=params.get("agentCount", 100),
+                        trust_decay=params.get("trustDecay", 0.01),
+                        trust_quota=params.get("trustQuota", 0.3)
+                    )
+                    global simulation_task
+                    simulation_task = asyncio.create_task(simulation_loop())
+                elif cmd_type == "pause":
+                    sim_engine.pause()
+                elif cmd_type == "update_config":
+                    payload = data.get("payload", {})
+                    update_dict = {}
+                    if "trustDecay" in payload:
+                        update_dict["trust_decay"] = payload["trustDecay"]
+                    if "trustQuota" in payload:
+                        update_dict["trust_quota"] = payload["trustQuota"]
+                    if "speedMultiplier" in payload:
+                        # Adjust dt based on speed multiplier
+                        update_dict["dt"] = 0.016 / payload["speedMultiplier"]
+                    sim_engine.update_parameters(update_dict)
+    except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
 
 @router.get("/ws/status")
 async def websocket_status():

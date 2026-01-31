@@ -61,7 +61,7 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
         trustQuota: 0.3,
         speedMultiplier: 1.0
     });
-    const isMock = true; // Hardcoded for now until real backend is ready
+    const isMock = false; // Set to false to use real backend
 
     useEffect(() => {
         if (isMock) {

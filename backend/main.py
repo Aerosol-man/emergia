@@ -10,13 +10,13 @@ app = FastAPI(title="Market Without Money API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost", "http://localhost:3000"],
+    allow_origins=["http://localhost", "http://localhost:3000", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.include_router(router, prefix="/api")
+app.include_router(router)  # No prefix, so /ws is available at root
 
 @app.get("/")
 async def root():

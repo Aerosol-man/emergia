@@ -111,7 +111,7 @@ class SimulationState:
             "events": list(self.events[-200:]),
             "collisionLog": list(self.collision_log[-200:]),
         }
-
+    
     def to_broadcast_dict(self) -> dict:
         """Optimized state for WebSocket broadcast (your required format)."""
         return {

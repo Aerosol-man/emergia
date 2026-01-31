@@ -45,7 +45,10 @@ class SimulationEngine:
     
     def get_state(self) -> dict:
         """Return current state as dict"""
-        pass
+        if self.state:
+            return self.state.to_dict()
+        return {}
+
     
     def get_broadcast_state(self) -> dict:
         """Return optimized state for WebSocket"""

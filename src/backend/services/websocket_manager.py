@@ -19,15 +19,16 @@ class ConnectionManager:
     
     async def send_personal_message(self, message: dict, websocket: WebSocket):
         """Send message to specific client"""
-        pass
+        await websocket.send_json(json.dumps(message))
     
     async def broadcast(self, message: dict):
         """Broadcast message to all connected clients"""
-        pass
+        for connection in self.active_connections:
+            await self.send_personal_message(message, connection)
     
     async def broadcast_json(self, data: dict):
         """Broadcast JSON data to all clients"""
-        pass
+        await self.broadcast(data)
     
     async def heartbeat(self, websocket: WebSocket):
         """Send periodic ping to keep connection alive"""

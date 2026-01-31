@@ -21,32 +21,53 @@ class ParameterUpdate(BaseModel):
 @router.post("/simulation/start")
 async def start_simulation(params: StartParams):
     """Start simulation with given parameters"""
-    pass
+    sim_engine.start(
+        num_agents=params.num_agents,
+        trust_decay=params.trust_decay,
+        trust_quota=params.trust_quota
+    )
+    router.logger.info(f"Simulation started with {params.num_agents} agents.")
+    return {"status": "simulation started"}
 
 @router.get("/simulation/state")
 async def get_state():
     """Get current simulation state"""
-    pass
+    if not sim_engine.state:
+        raise HTTPException(status_code=400, detail="Simulation not running")
+    return sim_engine.get_state()
 
 @router.post("/simulation/pause")
 async def pause_simulation():
     """Pause the simulation"""
-    pass
+    sim_engine.pause()
+    return {"status": "simulation paused"}
 
 @router.post("/simulation/reset")
 async def reset_simulation():
     """Reset simulation to initial state"""
-    pass
+    sim_engine.reset()
+    return {"status": "simulation reset"}
 
 @router.post("/simulation/parameters")
 async def update_parameters(params: ParameterUpdate):
     """Update simulation parameters on-the-fly"""
-    pass
+    sim_engine.update_parameters(
+        trust_decay=params.trust_decay,
+        trust_quota=params.trust_quota,
+        add_bad_actors=params.add_bad_actors
+    )
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time state updates"""
-    pass
+    await ws_manager.connect(websocket)
+    while True:
+        try:
+            await websocket.receive_json()  # Keep connection alive
+            await ws_manager.send_personal_message(sim_engine.get_broadcast_state(), websocket)
+        except WebSocketDisconnect:
+            ws_manager.disconnect(websocket)
+            break
 
 @router.get("/ws/status")
 async def websocket_status():

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, BarChart3, Globe2, Scale } from 'lucide-react';
+import { Activity, BarChart3, Globe2, Scale, EyeOff } from 'lucide-react';
 import type { SimulationState } from '../../types/simulation';
 
 interface StatsOverlayProps {
@@ -27,23 +27,30 @@ export const StatsOverlay: React.FC<StatsOverlayProps> = ({ metrics }) => {
         <div
             onClick={() => setShowStats(!showStats)}
             style={{ cursor: 'pointer', padding: '0.5rem', borderRadius: '50%', background: 'var(--bg-accent-secondary)', boxShadow: 'var(--shadow-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {showStats ? <Activity size={20} style={{ color: 'var(--color-text-primary)' }} /> : <BarChart3 size={20} style={{ color: 'var(--color-text-primary)' }} />}
+            {showStats ? <EyeOff size={20} style={{ color: 'var(--color-text-primary)' }} /> : <BarChart3 size={20} style={{ color: 'var(--color-text-primary)' }} />}
         </div>
     )
 
+    const buttonStyle = {
+        position: 'absolute',
+        bottom: 30,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        padding: '1rem 2rem',
+        borderRadius: 'var(--radius-lg)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 10,
+        opacity: 0.7,
+        transition: 'opacity 0.3s',
+        pointerEvents: 'auto' as 'auto',
+        ...(showStats ? { opacity: 1 } : {}),
+        '&:hover': { opacity: 1 }
+    }
+
     const hidden = (
-        <div className="glass-panel" style={{
-            position: 'absolute',
-            bottom: 30,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            padding: '1rem 2rem',
-            borderRadius: 'var(--radius-lg)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 10
-        }}>
+        <div className="glass-panel" style={buttonStyle}>
             {toggleButton}
         </div>
     )

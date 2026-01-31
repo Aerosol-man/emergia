@@ -40,7 +40,7 @@ export type WebSocketMessage =
 * Message format to WebSocket
 */
 export type ClientAction =
-    | { type: 'start' }
+    | { type: 'start', payload: SimulationConfig }
     | { type: 'pause' }
     | { type: 'reset' }
     | { type: 'update_config'; payload: Partial<SimulationConfig> };

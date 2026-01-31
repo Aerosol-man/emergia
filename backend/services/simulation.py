@@ -1,8 +1,14 @@
 from models.state import SimulationState
 from services.collision import CollisionDetector
 from services.trust import TrustEngine
+from services.collision_response import (
+    apply_soft_separation,
+    apply_neutral_bounce,
+    apply_hard_bounce,
+)
 from typing import Optional, Callable
 import asyncio
+
 
 
 class SimulationEngine:
@@ -43,7 +49,9 @@ class SimulationEngine:
             except TypeError:
                 pass
 
-        self.collision_detector = CollisionDetector()
+        self.collision_detector = CollisionDetector(
+            collision_radius=self.collision_radius
+        )
 
         alpha = getattr(self.state, "global_alpha", 0.10)
         beta = getattr(self.state, "global_beta", 0.05)
@@ -63,98 +71,82 @@ class SimulationEngine:
         if not self.running or not self.state:
             return
 
+        # ---- Tick bookkeeping ----
         self.tick_counter += 1
+        self.state.tick += 1
 
-        if hasattr(self.state, "tick"):
-            self.state.tick += 1
+        agents_dict = self.state.agents
+        bounds = self.state.bounds
 
-        # ---- 1) Update motion ----
-        bounds = getattr(self.state, "bounds", (1000.0, 1000.0))
-        agents_dict = getattr(self.state, "agents", {})
-        agents_list = list(agents_dict.values())
+        # ---- 1) Collision detection FIRST ----
+        try:
+            pairs = self.collision_detector.detect_collisions(agents_dict)
+        except Exception:
+            pairs = []
 
-        for agent in agents_list:
-            agent.update_position(self.dt, bounds)
-
-        # ---- 2) Collisions ----
-        pairs = []
-        if self.collision_detector:
-            if hasattr(self.collision_detector, "detect_collisions"):
-                try:
-                    pairs = self.collision_detector.detect_collisions(agents_dict)
-                except TypeError:
-                    pairs = []
-
-        total_collisions = len(pairs)
+        self.state.metrics["totalCollisions"] += len(pairs)
         trade_directions_this_tick = 0
 
-        if hasattr(self.state, "metrics") and isinstance(self.state.metrics, dict):
-            self.state.metrics["totalCollisions"] = self.state.metrics.get("totalCollisions", 0) + total_collisions
-
-        # ---- 3) Trust logic per collision (directional) ----
-        # detect_collisions returns (agent_id, agent_id) tuples,
-        # so we must resolve them to actual Agent objects
+        # ---- 2) Collision resolution (SOCIAL + PHYSICAL) ----
         for id_a, id_b in pairs:
             a = agents_dict[id_a]
             b = agents_dict[id_b]
 
-            # OnCollide(a seller, b buyer)
             info_ab = self.trust_engine.apply_collision_logic(a, b)
-            # OnCollide(b seller, a buyer)
             info_ba = self.trust_engine.apply_collision_logic(b, a)
 
-            # count trades (directional)
-            trade_directions_this_tick += int(bool(info_ab.get("trade", False)))
-            trade_directions_this_tick += int(bool(info_ba.get("trade", False)))
+            trade_ab = bool(info_ab.get("trade", False))
+            trade_ba = bool(info_ba.get("trade", False))
 
-            if info_ab.get("trade", False):
-                if hasattr(a, "trade_count"):
-                    a.trade_count += 1
-                if hasattr(b, "trade_count"):
-                    b.trade_count += 1
-                if hasattr(a, "last_trade_tick"):
-                    a.last_trade_tick = getattr(self.state, "tick", self.tick_counter)
-                if hasattr(b, "last_trade_tick"):
-                    b.last_trade_tick = getattr(self.state, "tick", self.tick_counter)
+            trade_directions_this_tick += int(trade_ab) + int(trade_ba)
 
-            if info_ba.get("trade", False):
-                if hasattr(a, "trade_count"):
-                    a.trade_count += 1
-                if hasattr(b, "trade_count"):
-                    b.trade_count += 1
-                if hasattr(a, "last_trade_tick"):
-                    a.last_trade_tick = getattr(self.state, "tick", self.tick_counter)
-                if hasattr(b, "last_trade_tick"):
-                    b.last_trade_tick = getattr(self.state, "tick", self.tick_counter)
+            radius = self.collision_detector.collision_radius
 
-            if hasattr(self.state, "collision_log") and isinstance(self.state.collision_log, list):
-                self.state.collision_log.append({
-                    "tick": getattr(self.state, "tick", self.tick_counter),
-                    "pair": (a.agent_id, b.agent_id),
-                    "ab": info_ab,
-                    "ba": info_ba,
-                })
+            if trade_ab and trade_ba:
+                apply_soft_separation(a, b, radius)
+            elif trade_ab ^ trade_ba:
+                apply_hard_bounce(a, b, radius)
+            else:
+                apply_neutral_bounce(a, b, radius)
+                # neutral
 
-        if hasattr(self.state, "metrics") and isinstance(self.state.metrics, dict):
-            self.state.metrics["tradeCount"] = self.state.metrics.get("tradeCount", 0) + trade_directions_this_tick
-            cc = self.state.metrics.get("totalCollisions", 0)
-            tc = self.state.metrics.get("tradeCount", 0)
-            self.state.metrics["tradeSuccessRate"] = (tc / cc) if cc > 0 else 0.0
+            # ---- Trade bookkeeping (once per collision) ----
+            if trade_ab or trade_ba:
+                a.trade_count += 1
+                b.trade_count += 1
+                a.last_trade_tick = self.state.tick
+                b.last_trade_tick = self.state.tick
 
-        # ---- 4) Trust decay (every X ticks) ----
-        if self.decay_interval_ticks > 0 and (self.tick_counter % self.decay_interval_ticks == 0):
-            trust_decay = float(getattr(self.state, "trust_decay", 0.0))
-            decay_factor = 1.0 - trust_decay
-            decay_factor = max(0.0, min(1.0, decay_factor))
-            self.trust_engine.apply_decay(agents_dict, decay_factor)
+            self.state.collision_log.append({
+                "tick": self.state.tick,
+                "pair": (a.agent_id, b.agent_id),
+                "ab": info_ab,
+                "ba": info_ba,
+            })
 
-        # ---- 5) Update metrics ----
-        if hasattr(self.state, "update_metrics"):
-            self.state.update_metrics()
-        else:
-            if hasattr(self.state, "metrics") and isinstance(self.state.metrics, dict) and len(agents_list) > 0:
-                avg_trust = sum(getattr(a, "trust", 0.0) for a in agents_list) / len(agents_list)
-                self.state.metrics["avgTrust"] = avg_trust
+        # ---- 3) APPLY MOTION AFTER IMPULSES (CRITICAL) ----
+        for agent in agents_dict.values():
+            agent.update_position(self.dt, bounds)
+
+            # Prevent impulse loss
+            MAX_SPEED = agent.max_speed if hasattr(agent, "max_speed") else 80.0
+            agent.vx = max(min(agent.vx, MAX_SPEED), -MAX_SPEED)
+            agent.vy = max(min(agent.vy, MAX_SPEED), -MAX_SPEED)
+
+        # ---- 4) Metrics ----
+        self.state.metrics["tradeCount"] += trade_directions_this_tick
+        cc = self.state.metrics["totalCollisions"]
+        tc = self.state.metrics["tradeCount"]
+        self.state.metrics["tradeSuccessRate"] = (tc / cc) if cc > 0 else 0.0
+
+        # ---- 5) Trust decay ----
+        if self.decay_interval_ticks > 0 and self.tick_counter % self.decay_interval_ticks == 0:
+            decay = max(0.0, min(1.0, self.state.trust_decay))
+            self.trust_engine.apply_decay(agents_dict, 1.0 - decay)
+
+        # ---- 6) Aggregate metrics ----
+        self.state.update_metrics()
+
 
     def should_broadcast(self) -> bool:
         """Check if this tick should trigger a broadcast"""

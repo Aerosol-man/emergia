@@ -3,6 +3,7 @@ import { Renderer } from './Renderer';
 import { useSimulationSocket } from '../../hooks/useSimulationSocket';
 import { ControlPanel } from '../Controls/ControlPanel';
 import { StatsOverlay } from '../Dashboard/StatsOverlay';
+import { MetricsCharts } from '../Dashboard/MetricsCharts';
 
 const SimulationCanvas: React.FC = () => {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -51,6 +52,9 @@ const SimulationCanvas: React.FC = () => {
 
             {/* Controls */}
             <ControlPanel sendAction={sendAction} />
+
+            {/* Metrics Charts (Top Left) */}
+            <MetricsCharts metrics={lastMetrics} />
 
             {/* Dashboard Stats */}
             <StatsOverlay metrics={lastMetrics} />

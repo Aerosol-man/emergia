@@ -1,4 +1,3 @@
-# backend/api/routes.py
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 from services.simulation import SimulationEngine
@@ -34,17 +33,11 @@ async def simulation_loop():
         await asyncio.sleep(1/30)  # ~30 FPS
 
 
-async def broadcast_state(state_dict: dict):
-    """Callback to broadcast state to all connected WebSocket clients"""
-    await ws_manager.broadcast(state_dict)
-
-
 @router.post("/simulation/start")
 async def start_simulation(params: StartParams):
     """Start simulation with given parameters"""
     global simulation_task
-    
-    # Stop any existing simulation
+
     if simulation_task and not simulation_task.done():
         sim_engine.pause()
         simulation_task.cancel()
@@ -52,20 +45,15 @@ async def start_simulation(params: StartParams):
             await simulation_task
         except asyncio.CancelledError:
             pass
-    
-    # Set up broadcast callback
-    sim_engine.set_broadcast_callback(broadcast_state)
-    
-    # Start simulation
+
     sim_engine.start(
         num_agents=params.num_agents,
         trust_decay=params.trust_decay,
         trust_quota=params.trust_quota
     )
-    
-    # Start background loop
+
     simulation_task = asyncio.create_task(simulation_loop())
-    
+
     print(f"Simulation started with {params.num_agents} agents.")
     return {"status": "simulation started"}
 
@@ -108,25 +96,41 @@ async def websocket_endpoint(websocket: WebSocket):
     await ws_manager.connect(websocket)
     try:
         while True:
-            # Keep connection alive by receiving any messages (heartbeat or commands)
             data = await websocket.receive_json()
-            
-            # Handle client commands
+
             if isinstance(data, dict):
                 cmd_type = data.get("type")
                 if cmd_type == "start":
-                    # Trigger start via the same logic
+                    global simulation_task
+
+                    # Stop any existing simulation
+                    if simulation_task and not simulation_task.done():
+                        sim_engine.pause()
+                        simulation_task.cancel()
+                        try:
+                            await simulation_task
+                        except asyncio.CancelledError:
+                            pass
+
                     params = data.get("payload", {})
-                    sim_engine.set_broadcast_callback(broadcast_state)
                     sim_engine.start(
                         num_agents=params.get("agentCount", 100),
                         trust_decay=params.get("trustDecay", 0.01),
                         trust_quota=params.get("trustQuota", 0.3)
                     )
-                    global simulation_task
+
+                    # Start the loop — broadcast directly via ws_manager, no callback needed
                     simulation_task = asyncio.create_task(simulation_loop())
+                    print(f"Simulation started with {params.get('agentCount', 100)} agents via WebSocket.")
+
                 elif cmd_type == "pause":
                     sim_engine.pause()
+
+                elif cmd_type == "reset":
+                    sim_engine.reset()
+                    if simulation_task and not simulation_task.done():
+                        simulation_task.cancel()
+
                 elif cmd_type == "update_config":
                     payload = data.get("payload", {})
                     update_dict = {}
@@ -135,10 +139,13 @@ async def websocket_endpoint(websocket: WebSocket):
                     if "trustQuota" in payload:
                         update_dict["trust_quota"] = payload["trustQuota"]
                     if "speedMultiplier" in payload:
-                        # Adjust dt based on speed multiplier
                         update_dict["dt"] = 0.016 / payload["speedMultiplier"]
                     sim_engine.update_parameters(update_dict)
+
     except WebSocketDisconnect:
+        ws_manager.disconnect(websocket)
+    except Exception as e:
+        print(f"WebSocket error: {e}")
         ws_manager.disconnect(websocket)
 
 @router.get("/ws/status")

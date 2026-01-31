@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ParameterSlider } from './ParameterSlider';
 import { ActionGroup } from './ActionGroup';
-import { Users, TrendingDown, ShieldCheck, Zap } from 'lucide-react';
+import { Users, TrendingDown, ShieldCheck, ChevronDown, ChevronUp, Zap } from 'lucide-react';
 import type { ClientAction, SimulationConfig } from '../../types/simulation';
 
 interface ControlPanelProps {
@@ -15,6 +15,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
         trustQuota: 0.3,
         speedMultiplier: 1.0
     });
+    
 
     const handleChange = (key: keyof SimulationConfig, value: number) => {
         const newConfig = { ...config, [key]: value };
@@ -23,6 +24,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
     };
 
     const [isRunning, setIsRunning] = useState(false);
+    const [maximized, setMaximized] = useState(true);
 
     const handleStart = () => {
         setIsRunning(true);
@@ -39,19 +41,49 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
         sendAction({ type: 'reset' });
     };
 
-    return (
+    const toggleButton = (
+        <div
+            onClick={() => setMaximized(!maximized)}
+            style={{ cursor: 'pointer', padding: '0.5rem', borderRadius: '50%', background: 'var(--bg-accent-secondary)', boxShadow: 'var(--shadow-md)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {maximized ? <ChevronUp size={20} style={{ color: 'var(--color-text-primary)' }} /> : <ChevronDown size={20} style={{ color: 'var(--color-text-primary)' }} />}
+        </div>
+    );
+
+    const hidden = (
+        <div className="glass-panel" 
+        style={{
+            position: 'absolute',
+            width: '320px',
+            top: 20,
+            right: 20,
+            padding: '0.5rem',
+            borderRadius: '5%',
+            background: 'var(--bg-accent-secondary)',
+            boxShadow: 'var(--shadow-md)',
+            cursor: 'pointer',
+            opacity: 0.7,
+            zIndex: 10,
+            transition: 'opacity 0.3s',
+            pointerEvents: 'auto' as 'auto',
+        }}>
+            {toggleButton}
+        </div>
+    );
+
+    const shown = (
         <aside className="glass-panel" style={{
             width: '320px',
             height: 'calc(100vh - 40px)',
             position: 'absolute',
             top: 20,
             right: 20,
-            padding: '1.5rem',
+            padding: '1rem',
             borderRadius: 'var(--radius-lg)',
             display: 'flex',
             flexDirection: 'column',
             zIndex: 10
         }}>
+            {toggleButton}
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.25rem', color: 'var(--color-text-primary)' }}>
                 Emergia Control
             </h2>
@@ -109,4 +141,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
             </div>
         </aside>
     );
+
+    return maximized ? shown : hidden;
 };

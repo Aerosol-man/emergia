@@ -139,7 +139,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     if "trustQuota" in payload:
                         update_dict["trust_quota"] = payload["trustQuota"]
                     if "speedMultiplier" in payload:
-                        update_dict["dt"] = 0.016 / payload["speedMultiplier"]
+                        update_dict["dt"] = 0.016 * payload["speedMultiplier"]
                     sim_engine.update_parameters(update_dict)
 
     except WebSocketDisconnect:

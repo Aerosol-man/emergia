@@ -20,6 +20,17 @@ export class Renderer {
         .range(['#ef4444', '#eab308', '#22c55e']) // Red -> Yellow -> Green
         .clamp(true);
 
+    private static readonly GROUP_PALETTE = [
+        '#3b82f6', // Blue
+        '#a855f7', // Purple
+        '#f97316', // Orange
+        '#06b6d4', // Cyan
+        '#ec4899', // Pink
+        '#14b8a6', // Teal
+        '#8b5cf6', // Violet
+        '#f43f5e', // Rose
+    ];
+
     constructor(canvas: HTMLCanvasElement, width: number, height: number, stateBuffer: React.MutableRefObject<SimulationState[]>) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D; // optimization
@@ -144,11 +155,19 @@ export class Renderer {
                 ctx.shadowBlur = 0;
             }
 
+            // Group Color Border
+            const groupColor = Renderer.GROUP_PALETTE[agent.groupId % Renderer.GROUP_PALETTE.length];
+
             // Draw Agent Body
             ctx.beginPath();
             ctx.arc(cx, cy, radius, 0, Math.PI * 2);
             ctx.fillStyle = color;
             ctx.fill();
+
+            // Draw Group Border
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = groupColor;
+            ctx.stroke();
 
             // 4. Flash Animation
             if (this.flashEvents.has(agent.id)) {

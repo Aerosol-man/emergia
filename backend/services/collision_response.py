@@ -28,7 +28,7 @@ def _separate_positions(a, b, penetration):
     b.y -= ny * correction
 
 
-def apply_soft_separation(a, b, radius, strength=100):
+def apply_soft_separation(a, b, radius, strength=0.1):
     nx, ny, dist = _collision_normal(a, b)
     if dist <= 0:
         return

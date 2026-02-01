@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Renderer } from './Renderer';
 import { useSimulationSocket } from '../../hooks/useSimulationSocket';
 import { ControlPanel } from '../Controls/ControlPanel';
@@ -11,6 +11,14 @@ const SimulationCanvas: React.FC = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const rendererRef = useRef<Renderer | null>(null);
+    const [highlightedGroupId, setHighlightedGroupId] = useState<number | null>(null);
+
+    // Update renderer when highlighted group changes
+    useEffect(() => {
+        if (rendererRef.current) {
+            rendererRef.current.setHighlightedGroupId(highlightedGroupId);
+        }
+    }, [highlightedGroupId]);
 
     const {
         stateBuffer,
@@ -78,6 +86,8 @@ const SimulationCanvas: React.FC = () => {
                 switchGroup={switchGroup}
                 updateGroupConfig={updateGroupConfig}
                 toggleGroupVisibility={toggleGroupVisibility}
+                highlightedGroupId={highlightedGroupId}
+                setHighlightedGroupId={setHighlightedGroupId}
             />
 
             <MetricsCharts metrics={lastMetrics} />

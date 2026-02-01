@@ -1,10 +1,34 @@
 # backend/models/state.py
 from __future__ import annotations
-from typing import Dict, List, Tuple
-
+from typing import Dict, List, Tuple, Any
 from .agent import Agent
+import math
 
 MAX_GROUPS = 5
+
+def _safe_median(values: List[float]) -> float:
+    if not values:
+        return 0.0
+    s = sorted(values)
+    n = len(s)
+    mid = n // 2
+    if n % 2 == 1:
+        return float(s[mid])
+    return float((s[mid - 1] + s[mid]) / 2.0)
+
+def _trust_stats(values: List[float]) -> dict:
+    if not values:
+        return {"avg": 0.0, "median": 0.0, "min": 0.0, "max": 0.0}
+    return {
+        "avg": float(sum(values) / len(values)),
+        "median": float(_safe_median(values)),
+        "min": float(min(values)),
+        "max": float(max(values)),
+    }
+
+def _series_stats(values: List[float]) -> dict:
+    # same as trust stats, but semantically “over time series”
+    return _trust_stats(values)
 
 
 class AgentGroup:
@@ -36,6 +60,12 @@ class AgentGroup:
             "avgTrust": 0.0,
             "giniCoefficient": 0.0,
             "agentCount": 0,
+        }
+
+        # Per-group counters (accumulated over whole sim)
+        self.counters: dict = {
+            "totalCollisions": 0,
+            "tradeCount": 0,
         }
 
     @property
@@ -133,6 +163,10 @@ class SimulationState:
             "tradeCount": 0,
             "totalCollisions": 0,
         }
+
+        # reporting
+        self.reports: List[dict] = []
+        self.report_interval_ticks: int = 60  # generate snapshot every 60 ticks by default
 
         if num_agents > 0:
             self._init_group(0, num_agents)
@@ -300,5 +334,126 @@ class SimulationState:
                 "agents": [a.to_minimal_dict() for a in self.all_agents.values()],
                 "metrics": dict(self.global_metrics),
                 "bounds": self.bounds,
+            },
+        }
+    
+
+    def record_report_snapshot(self) -> None:
+        """
+        Capture a rolling snapshot every report interval.
+        Stores per-group + global metrics at this tick.
+        """
+        print("Compiling snapshot report...")
+        # ensure metrics are fresh
+        self.update_metrics()
+
+        group_payload = {}
+        for gid, g in self.groups.items():
+            group_payload[str(gid)] = {
+                "tick": self.tick,
+                "groupId": gid,
+                "agentCount": g.agent_count,
+                "avgTrust": float(g.metrics.get("avgTrust", 0.0)),
+                "giniCoefficient": float(g.metrics.get("giniCoefficient", 0.0)),
+                "totalCollisions": int(g.counters.get("totalCollisions", 0)),
+                "tradeCount": int(g.counters.get("tradeCount", 0)),
+            }
+
+        print("group payload made")
+
+        snap = {
+            "tick": self.tick,
+            "global": {
+                "avgTrust": float(self.global_metrics.get("avgTrust", 0.0)),
+                "giniCoefficient": float(self.global_metrics.get("giniCoefficient", 0.0)),
+                "totalCollisions": int(self.global_metrics.get("totalCollisions", 0)),
+                "tradeCount": int(self.global_metrics.get("tradeCount", 0)),
+                "tradeSuccessRate": float(self.global_metrics.get("tradeSuccessRate", 0.0)),
+                "agentCount": int(self.agent_count),
+            },
+            "groups": group_payload,
+        }  
+
+        print("aobut to add to reports list")
+
+        self.reports.append(snap)
+
+        print(f"=> added to report list! {snap}")
+        
+        # cap to avoid memory blowups (tune as needed)
+        if len(self.reports) > 2000:
+            self.reports = self.reports[-1000:]
+
+
+    def compile_final_report(self) -> dict:
+        """
+        Final aggregated report:
+        - Trust stats: computed from final trust values (global + per group)
+        - Gini stats: computed from rolling report series (global + per group)
+        - Collisions/trades totals: from counters
+        """
+        all_agents = list(self.all_agents.values())
+        global_trusts = [a.trust for a in all_agents]
+
+        # --- Global trust stats (final distribution) ---
+        global_trust_stats = _trust_stats(global_trusts)
+
+        # --- Global gini stats (over time) ---
+        global_gini_series = []
+        for r in self.reports:
+            g = r.get("global", {}).get("giniCoefficient")
+            if isinstance(g, (int, float)):
+                global_gini_series.append(float(g))
+        global_gini_stats = _series_stats(global_gini_series)
+
+        # --- Global collisions/trades ---
+        total_collisions = int(self.global_metrics.get("totalCollisions", 0))
+        trade_count = int(self.global_metrics.get("tradeCount", 0))
+        trade_success = (trade_count / total_collisions) if total_collisions > 0 else 0.0
+
+        # --- Per-group ---
+        group_reports = {}
+        for gid, group in self.groups.items():
+            trusts = [a.trust for a in group.agents.values()]
+            trust_stats = _trust_stats(trusts)
+
+            gini_series = []
+            for r in self.reports:
+                gg = r.get("groups", {}).get(str(gid), {}).get("giniCoefficient")
+                if isinstance(gg, (int, float)):
+                    gini_series.append(float(gg))
+            gini_stats = _series_stats(gini_series)
+
+            gc = int(group.counters.get("totalCollisions", 0))
+            gt = int(group.counters.get("tradeCount", 0))
+            gsuccess = (gt / gc) if gc > 0 else 0.0
+
+            group_reports[str(gid)] = {
+                "groupId": gid,
+                "agentCount": group.agent_count,
+                "trust": trust_stats,
+                "giniCoefficient": gini_stats,
+                "totalCollisions": gc,
+                "tradeCount": gt,
+                "tradeSuccessRate": float(gsuccess),
+                "config": group.get_config(),
+            }
+
+        return {
+            "tickEnd": self.tick,
+            "global": {
+                "agentCount": self.agent_count,
+                "trust": global_trust_stats,
+                "giniCoefficient": global_gini_stats,
+                "totalCollisions": total_collisions,
+                "tradeCount": trade_count,
+                "tradeSuccessRate": float(trade_success),
+            },
+            "groups": group_reports,
+            # Optional: return some rolling snapshots for frontend charts
+            "rolling": {
+                "intervalTicks": int(self.report_interval_ticks),
+                "count": len(self.reports),
+                "snapshots": self.reports[-200:],  # last N only
             },
         }

@@ -56,18 +56,20 @@ export interface SimulationConfig {
 }
 
 export type WebSocketMessage =
-    | { type: 'state_update'; payload: SimulationState }
-    | { type: 'group_created'; payload: { status: string; groupId: number; agentCount: number; config: GroupConfig } | { error: string } }
-    | { type: 'group_switched'; payload: { status: string; activeGroupId: number } | { error: string } }
-    | { type: 'group_config_updated'; payload: { status: string; groupId: number; config: GroupConfig } | { error: string } }
-    | { type: 'event'; payload: { name: string; details: any } };
+  | { type: 'report_final'; payload: { final_report: any } }  // ✅ keep
+  | { type: 'state_update'; payload: SimulationState }
+  | { type: 'group_created'; payload: { status: string; groupId: number; agentCount: number; config: GroupConfig } | { error: string } }
+  | { type: 'group_switched'; payload: { status: string; activeGroupId: number } | { error: string } }
+  | { type: 'group_config_updated'; payload: { status: string; groupId: number; config: GroupConfig } | { error: string } }
+  | { type: 'event'; payload: { name: string; details: any } };
 
 export type ClientAction =
-    | { type: 'start'; payload: SimulationConfig }
-    | { type: 'pause' }
-    | { type: 'reset' }
-    | { type: 'update_config'; payload: Partial<SimulationConfig> }
-    | { type: 'add_agent'; payload: { numAgents: number; trustQuota: number; trustGain: number; trustLoss: number; groupId?: number } }
-    | { type: 'create_group'; payload: { groupId: number; numAgents: number; config?: Partial<GroupConfig> } }
-    | { type: 'switch_group'; payload: { groupId: number } }
-    | { type: 'update_group_config'; payload: { groupId: number; config: Partial<GroupConfig> } };
+  | { type: 'start'; payload: SimulationConfig }
+  | { type: 'pause' }
+  | { type: 'reset' }
+  | { type: 'end' } // ✅ add this
+  | { type: 'update_config'; payload: Partial<SimulationConfig> }
+  | { type: 'add_agent'; payload: { numAgents: number; trustQuota: number; trustGain: number; trustLoss: number; groupId?: number } }
+  | { type: 'create_group'; payload: { groupId: number; numAgents: number; config?: Partial<GroupConfig> } }
+  | { type: 'switch_group'; payload: { groupId: number } }
+  | { type: 'update_group_config'; payload: { groupId: number; config: Partial<GroupConfig> } };

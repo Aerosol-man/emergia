@@ -110,6 +110,11 @@ async def websocket_endpoint(websocket: WebSocket):
 
             elif cmd_type == "pause":
                 sim_engine.pause()
+                report = sim_engine.state.compile_final_report()
+                sim_engine.state.reports = []
+                print("FINAL REPORT => " + str(report))
+                print("------------------------------")
+                await ws_manager.broadcast_json({'type': 'report_final', 'payload': {'final_report': report}})
 
             elif cmd_type == "reset":
                 sim_engine.reset()

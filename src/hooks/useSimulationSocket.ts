@@ -56,8 +56,10 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
     const [activeGroupId, setActiveGroupId] = useState(0);
     const [existingGroupIds, setExistingGroupIds] = useState<number[]>([0]);
     const [groupConfigs, setGroupConfigs] = useState<Record<number, GroupConfig>>({});
+    const [visibleGroupIds, setVisibleGroupIds] = useState<Set<number>>(new Set([0]));
 
     const stateBuffer = useRef<SimulationState[]>([]);
+    const allAgentsRef = useRef<SimulationState['agents']>([]);
     const socketRef = useRef<WebSocket | null>(null);
 
     const mockIntervalRef = useRef<number | null>(null);
@@ -67,8 +69,21 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
     });
     const isMock = false;
 
+    const visibleGroupIdsRef = useRef(visibleGroupIds);
+    visibleGroupIdsRef.current = visibleGroupIds;
+
     const handleStateUpdate = useCallback((newState: SimulationState) => {
-        stateBuffer.current.push(newState);
+        // Store all agents for reference
+        allAgentsRef.current = newState.agents;
+
+        // Filter agents to only visible groups for the renderer
+        const visible = visibleGroupIdsRef.current;
+        const filteredState = {
+            ...newState,
+            agents: newState.agents.filter(a => visible.has(a.groupId ?? 0)),
+        };
+
+        stateBuffer.current.push(filteredState);
         if (stateBuffer.current.length > 3) {
             stateBuffer.current.shift();
         }
@@ -79,6 +94,19 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
         if (newState.groups) {
             const ids = Object.keys(newState.groups).map(Number);
             setExistingGroupIds(ids);
+
+            // Auto-mark new groups as visible
+            setVisibleGroupIds(prev => {
+                const next = new Set(prev);
+                let changed = false;
+                for (const id of ids) {
+                    if (!next.has(id)) {
+                        next.add(id);
+                        changed = true;
+                    }
+                }
+                return changed ? next : prev;
+            });
 
             const configs: Record<number, GroupConfig> = {};
             for (const [gid, group] of Object.entries(newState.groups)) {
@@ -204,6 +232,18 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
         sendAction({ type: 'update_group_config', payload: { groupId, config } });
     }, [sendAction]);
 
+    const toggleGroupVisibility = useCallback((groupId: number) => {
+        setVisibleGroupIds(prev => {
+            const next = new Set(prev);
+            if (next.has(groupId)) {
+                next.delete(groupId);
+            } else {
+                next.add(groupId);
+            }
+            return next;
+        });
+    }, []);
+
     return {
         isConnected,
         lastMetrics,
@@ -213,8 +253,10 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
         activeGroupId,
         existingGroupIds,
         groupConfigs,
+        visibleGroupIds,
         switchGroup,
         createGroup,
         updateGroupConfig,
+        toggleGroupVisibility,
     };
 };

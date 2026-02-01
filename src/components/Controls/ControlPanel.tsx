@@ -13,8 +13,10 @@ interface ControlPanelProps {
     activeGroupId: number;
     existingGroupIds: number[];
     groupConfigs: Record<number, GroupConfig>;
+    visibleGroupIds: Set<number>;
     switchGroup: (groupId: number) => void;
     updateGroupConfig: (groupId: number, config: Partial<GroupConfig>) => void;
+    toggleGroupVisibility: (groupId: number) => void;
 }
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
@@ -23,8 +25,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     activeGroupId,
     existingGroupIds,
     groupConfigs,
+    visibleGroupIds,
     switchGroup,
     updateGroupConfig,
+    toggleGroupVisibility,
 }) => {
     const [config, setConfig] = useState<SimulationConfig>({
         agentCount: 500,
@@ -188,7 +192,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             <GroupToggle
                 activeGroupId={activeGroupId}
                 existingGroupIds={existingGroupIds}
+                visibleGroupIds={visibleGroupIds}
                 onSwitchGroup={switchGroup}
+                onToggleVisibility={toggleGroupVisibility}
             />
 
             <div style={{ display: 'flex', flexDirection: 'row', marginBottom: '1rem' }}>

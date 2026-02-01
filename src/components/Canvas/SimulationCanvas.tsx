@@ -19,8 +19,10 @@ const SimulationCanvas: React.FC = () => {
         activeGroupId,
         existingGroupIds,
         groupConfigs,
+        visibleGroupIds,
         switchGroup,
         updateGroupConfig,
+        toggleGroupVisibility,
     } = useSimulationSocket();
 
     useEffect(() => {
@@ -62,8 +64,10 @@ const SimulationCanvas: React.FC = () => {
                 activeGroupId={activeGroupId}
                 existingGroupIds={existingGroupIds}
                 groupConfigs={groupConfigs}
+                visibleGroupIds={visibleGroupIds}
                 switchGroup={switchGroup}
                 updateGroupConfig={updateGroupConfig}
+                toggleGroupVisibility={toggleGroupVisibility}
             />
 
             <MetricsCharts metrics={lastMetrics} />

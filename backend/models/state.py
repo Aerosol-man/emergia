@@ -8,7 +8,7 @@ MAX_GROUPS = 5
 
 
 class AgentGroup:
-    """Independent group with own agents, config, and metrics."""
+    """Config label for a subset of agents. Not a physics boundary."""
 
     def __init__(
         self,
@@ -31,13 +31,11 @@ class AgentGroup:
         self.global_beta: float = global_beta
         self.speed_multiplier: float = speed_multiplier
 
-        self.collision_log: List[dict] = []
+        # Per-group metrics (for comparison/reports)
         self.metrics: dict = {
             "avgTrust": 0.0,
             "giniCoefficient": 0.0,
-            "tradeSuccessRate": 0.0,
-            "tradeCount": 0,
-            "totalCollisions": 0,
+            "agentCount": 0,
         }
 
     @property
@@ -50,15 +48,14 @@ class AgentGroup:
 
     def update_metrics(self) -> None:
         n = len(self.agents)
+        self.metrics["agentCount"] = n
         if n == 0:
             self.metrics["avgTrust"] = 0.0
             self.metrics["giniCoefficient"] = 0.0
-            self.metrics["tradeSuccessRate"] = 0.0
             return
 
         trusts = [a.trust for a in self.agents.values()]
-        avg_trust = sum(trusts) / n
-        self.metrics["avgTrust"] = avg_trust
+        self.metrics["avgTrust"] = sum(trusts) / n
 
         sorted_trusts = sorted(trusts)
         cum = 0.0
@@ -70,10 +67,6 @@ class AgentGroup:
         else:
             gini = (2.0 * cum) / (n * total) - (n + 1) / n
         self.metrics["giniCoefficient"] = max(0.0, min(1.0, gini))
-
-        tc = self.metrics.get("tradeCount", 0)
-        cc = self.metrics.get("totalCollisions", 0)
-        self.metrics["tradeSuccessRate"] = (tc / cc) if cc > 0 else 0.0
 
     def get_config(self) -> dict:
         return {
@@ -101,7 +94,6 @@ class AgentGroup:
     def to_broadcast_dict(self) -> dict:
         return {
             "groupId": self.group_id,
-            "agents": [a.to_minimal_dict() for a in self.agents.values()],
             "metrics": dict(self.metrics),
             "config": self.get_config(),
             "agentCount": self.agent_count,
@@ -130,13 +122,37 @@ class SimulationState:
         self._next_agent_id: int = 0
         self.events: List[dict] = []
 
-        self._init_group(0, num_agents)
+        # Global collision log
+        self.collision_log_global: List[dict] = []
+
+        # Global metrics across ALL agents
+        self.global_metrics: dict = {
+            "avgTrust": 0.0,
+            "giniCoefficient": 0.0,
+            "tradeSuccessRate": 0.0,
+            "tradeCount": 0,
+            "totalCollisions": 0,
+        }
+
+        if num_agents > 0:
+            self._init_group(0, num_agents)
+
+    # ---- All agents flat view ----
+
+    @property
+    def all_agents(self) -> Dict[int, Agent]:
+        """Single flat dict of every agent across all groups."""
+        merged = {}
+        for group in self.groups.values():
+            merged.update(group.agents)
+        return merged
 
     # ---- Backward compat ----
 
     @property
     def agents(self) -> Dict[int, Agent]:
-        return self.active_group.agents
+        """For backward compat with collision detector etc."""
+        return self.all_agents
 
     @property
     def active_group(self) -> AgentGroup:
@@ -152,7 +168,7 @@ class SimulationState:
 
     @property
     def metrics(self) -> dict:
-        return self.active_group.metrics
+        return self.global_metrics
 
     @metrics.setter
     def metrics(self, value: dict):
@@ -160,7 +176,7 @@ class SimulationState:
 
     @property
     def collision_log(self) -> List[dict]:
-        return self.active_group.collision_log
+        return self.collision_log_global
 
     @collision_log.setter
     def collision_log(self, value: List[dict]):
@@ -218,34 +234,60 @@ class SimulationState:
         self._next_agent_id += 1
         return aid
 
+    # ---- Metrics ----
+
     def update_metrics(self) -> None:
+        """Compute global metrics across ALL agents, plus per-group."""
+        # Per-group
         for group in self.groups.values():
             group.update_metrics()
+
+        # Global
+        all_agents_list = list(self.all_agents.values())
+        n = len(all_agents_list)
+        if n == 0:
+            self.global_metrics["avgTrust"] = 0.0
+            self.global_metrics["giniCoefficient"] = 0.0
+            return
+
+        trusts = [a.trust for a in all_agents_list]
+        self.global_metrics["avgTrust"] = sum(trusts) / n
+
+        sorted_trusts = sorted(trusts)
+        cum = 0.0
+        for i, v in enumerate(sorted_trusts, start=1):
+            cum += i * v
+        total = sum(sorted_trusts)
+        if total <= 1e-12:
+            gini = 0.0
+        else:
+            gini = (2.0 * cum) / (n * total) - (n + 1) / n
+        self.global_metrics["giniCoefficient"] = max(0.0, min(1.0, gini))
+
+        tc = self.global_metrics.get("tradeCount", 0)
+        cc = self.global_metrics.get("totalCollisions", 0)
+        self.global_metrics["tradeSuccessRate"] = (tc / cc) if cc > 0 else 0.0
+
+    # ---- Events ----
 
     def add_event(self, event_type: str, data: dict) -> None:
         self.events.append({"tick": self.tick, "type": event_type, "data": data})
         if len(self.events) > 5000:
             self.events = self.events[-2500:]
 
+    # ---- Serialization ----
+
     def to_dict(self) -> dict:
-        all_agents = []
-        for g in self.groups.values():
-            all_agents.extend(a.to_dict() for a in g.agents.values())
         return {
             "tick": self.tick,
             "activeGroupId": self.active_group_id,
             "groups": {gid: g.to_broadcast_dict() for gid, g in self.groups.items()},
-            "agents": all_agents,
-            "metrics": dict(self.active_group.metrics),
+            "agents": [a.to_dict() for a in self.all_agents.values()],
+            "metrics": dict(self.global_metrics),
             "events": list(self.events[-200:]),
         }
 
     def to_broadcast_dict(self) -> dict:
-        # ALL agents from ALL groups — they share one canvas
-        all_agents = []
-        for g in self.groups.values():
-            all_agents.extend(a.to_minimal_dict() for a in g.agents.values())
-
         return {
             "type": "state_update",
             "payload": {
@@ -255,8 +297,8 @@ class SimulationState:
                     str(gid): g.to_broadcast_dict()
                     for gid, g in self.groups.items()
                 },
-                "agents": all_agents,
-                "metrics": dict(self.active_group.metrics),
+                "agents": [a.to_minimal_dict() for a in self.all_agents.values()],
+                "metrics": dict(self.global_metrics),
                 "bounds": self.bounds,
             },
         }

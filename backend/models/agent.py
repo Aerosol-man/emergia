@@ -104,7 +104,7 @@ class Agent:
         self.trust = max(0.0, min(1.0, self.trust + delta))
 
     def apply_decay(self, decay_rate: float) -> None:
-        self.trust *= decay_rate
+        self.trust = max(0.0, min(1.0, self.trust * decay_rate))
 
     def distance_to(self, other: 'Agent') -> float:
         return math.sqrt(self.distance_squared_to(other))

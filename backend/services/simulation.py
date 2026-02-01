@@ -1,7 +1,6 @@
 # backend/services/simulation.py
 from models.state import SimulationState, MAX_GROUPS
 from services.collision import CollisionDetector
-from services.trust import TrustEngine
 from services.collision_response import (
     apply_soft_separation,
     apply_neutral_bounce,
@@ -39,31 +38,85 @@ class SimulationEngine:
                 collision_radius=self.collision_radius
             )
 
-    def start(self, num_agents: int, trust_decay: float, trust_quota: float):
-        """Start the simulation loop.
+    def _get_group_params(self, agent):
+        """Get alpha/beta for an agent from their group."""
+        group = self.state.groups.get(agent.group_id)
+        if group:
+            return group.global_alpha, group.global_beta
+        return 0.10, 0.05
 
-        If groups were pre-configured, keeps them and just starts running.
-        If no state exists yet, creates Group 0 with num_agents.
-        If state exists but has zero agents anywhere, populates Group 0.
+    def _clamp(self, v: float) -> float:
+        return max(0.0, min(1.0, v))
+
+    def _resolve_collision_trust(self, a, b) -> bool:
+        """Resolve trust for a collision pair ONCE.
+
+        Checks both skill directions.
+        Each agent's trust changes use their OWN group's alpha/beta.
+        Returns True if a trade occurred.
+        """
+        # Check skill match in both directions
+        ab_match = (a.skill_possessed == b.skill_needed)  # a can sell to b
+        ba_match = (b.skill_possessed == a.skill_needed)  # b can sell to a
+
+        if not ab_match and not ba_match:
+            # No skill match at all — no trust change
+            return False
+
+        a_alpha, a_beta = self._get_group_params(a)
+        b_alpha, b_beta = self._get_group_params(b)
+
+        # Use per-agent overrides if set (custom agents)
+        a_alpha = getattr(a, "trust_alpha", a_alpha)
+        a_beta = getattr(a, "trust_beta", a_beta)
+        b_alpha = getattr(b, "trust_alpha", b_alpha)
+        b_beta = getattr(b, "trust_beta", b_beta)
+
+        a_ok = (a.trust >= a.trust_quota)
+        b_ok = (b.trust >= b.trust_quota)
+
+        # CASE 1: Neither meets quota → no change
+        if not a_ok and not b_ok:
+            return False
+
+        # CASE 2: Both meet quota AND skills match → trade, both trust UP
+        if a_ok and b_ok:
+            a.trust = self._clamp(a.trust + a_alpha)
+            b.trust = self._clamp(b.trust + b_alpha)
+            return True
+
+        # CASE 3: One meets, other doesn't → the one who met loses trust
+        if a_ok and not b_ok:
+            a.trust = self._clamp(a.trust - a_beta)
+            return False
+
+        if b_ok and not a_ok:
+            b.trust = self._clamp(b.trust - b_beta)
+            return False
+
+        return False
+
+    def start(self, num_agents: int, trust_decay: float, trust_quota: float):
+        """Start the simulation.
+
+        If groups were pre-configured, keeps them and just starts the loop.
+        If no state, creates Group 0 with num_agents.
+        If state exists but zero agents anywhere, populates Group 0.
         """
         if self.state and self.state.tick > 0:
-            # Was paused — just resume
             self.running = True
             return
 
         if not self.state:
-            # Fresh start — create state with Group 0
             self.state = SimulationState(
                 num_agents=int(num_agents),
                 trust_decay=float(trust_decay),
                 trust_quota=float(trust_quota),
             )
         else:
-            # State exists from pre-config
             self.state.trust_decay = float(trust_decay)
             self.state.trust_quota = float(trust_quota)
 
-            # If no agents anywhere, populate Group 0
             total_agents = sum(g.agent_count for g in self.state.groups.values())
             if total_agents == 0:
                 if 0 in self.state.groups:
@@ -91,99 +144,96 @@ class SimulationEngine:
         self.running = True
         self.tick_counter = 0
 
-    def _step_group(self, group):
-        """Run one tick for a single group using its own config."""
-        agents_dict = group.agents
-        if not agents_dict:
-            return
-
-        bounds = self.state.bounds
-
-        trust_engine = TrustEngine(
-            global_alpha=group.global_alpha,
-            global_beta=group.global_beta,
-        )
-
-        dt = self.dt * group.speed_multiplier
-
-        # 1) Collisions
-        try:
-            pairs = self.collision_detector.detect_collisions(agents_dict)
-        except Exception:
-            pairs = []
-
-        group.metrics["totalCollisions"] += len(pairs)
-        trade_directions = 0
-
-        # 2) Resolve
-        for id_a, id_b in pairs:
-            a = agents_dict[id_a]
-            b = agents_dict[id_b]
-
-            info_ab = trust_engine.apply_collision_logic(a, b)
-            info_ba = trust_engine.apply_collision_logic(b, a)
-
-            trade_ab = bool(info_ab.get("trade", False))
-            trade_ba = bool(info_ba.get("trade", False))
-            trade_directions += int(trade_ab) + int(trade_ba)
-
-            radius = self.collision_detector.collision_radius
-            if trade_ab and trade_ba:
-                apply_soft_separation(a, b, radius)
-            elif trade_ab ^ trade_ba:
-                apply_hard_bounce(a, b, radius)
-            else:
-                apply_neutral_bounce(a, b, radius)
-
-            if trade_ab or trade_ba:
-                a.trade_count += 1
-                b.trade_count += 1
-                a.last_trade_tick = self.state.tick
-                b.last_trade_tick = self.state.tick
-
-            group.collision_log.append({
-                "tick": self.state.tick,
-                "pair": (a.agent_id, b.agent_id),
-                "ab": info_ab,
-                "ba": info_ba,
-            })
-
-        # 3) Motion
-        for agent in agents_dict.values():
-            agent.update_position(dt, bounds)
-            MAX_SPEED = getattr(agent, "max_speed", 80.0)
-            agent.vx = max(min(agent.vx, MAX_SPEED), -MAX_SPEED)
-            agent.vy = max(min(agent.vy, MAX_SPEED), -MAX_SPEED)
-
-        # 4) Trade metrics
-        group.metrics["tradeCount"] += trade_directions
-        cc = group.metrics["totalCollisions"]
-        tc = group.metrics["tradeCount"]
-        group.metrics["tradeSuccessRate"] = (tc / cc) if cc > 0 else 0.0
-
     def step(self):
+        """Single simulation tick — ALL agents in one shared physics space."""
         if not self.running or not self.state:
             return
 
         self.tick_counter += 1
         self.state.tick += 1
 
-        for group in self.state.groups.values():
-            self._step_group(group)
+        # Flat dict of ALL agents across all groups
+        all_agents = self.state.all_agents
+        bounds = self.state.bounds
 
+        if not all_agents:
+            return
+
+        # ---- 1) Single collision pass across ALL agents ----
+        try:
+            pairs = self.collision_detector.detect_collisions(all_agents)
+        except Exception:
+            pairs = []
+
+        self.state.global_metrics["totalCollisions"] += len(pairs)
+        trade_directions = 0
+
+        # ---- 2) Resolve collisions ----
+        for id_a, id_b in pairs:
+            a = all_agents[id_a]
+            b = all_agents[id_b]
+
+            # Resolve trust ONCE per pair.
+            # Each agent's trust change uses their OWN group's alpha/beta.
+            trade = self._resolve_collision_trust(a, b)
+
+            if trade:
+                trade_directions += 1
+                a.trade_count += 1
+                b.trade_count += 1
+                a.last_trade_tick = self.state.tick
+                b.last_trade_tick = self.state.tick
+
+            # Physics — same for everyone
+            radius = self.collision_detector.collision_radius
+            if trade:
+                apply_soft_separation(a, b, radius)
+            else:
+                # Check if skills matched at all (at least one direction)
+                skills_ab = (a.skill_possessed == b.skill_needed)
+                skills_ba = (b.skill_possessed == a.skill_needed)
+                if skills_ab or skills_ba:
+                    apply_hard_bounce(a, b, radius)
+                else:
+                    apply_neutral_bounce(a, b, radius)
+
+            self.state.collision_log_global.append({
+                "tick": self.state.tick,
+                "pair": (a.agent_id, b.agent_id),
+                "trade": trade,
+            })
+
+        # Cap collision log
+        if len(self.state.collision_log_global) > 5000:
+            self.state.collision_log_global = self.state.collision_log_global[-2500:]
+
+        # ---- 3) Motion — per-agent speed from their group ----
+        for agent in all_agents.values():
+            group = self.state.groups.get(agent.group_id)
+            speed_mult = group.speed_multiplier if group else 1.0
+            agent.update_position(self.dt * speed_mult, bounds)
+            MAX_SPEED = getattr(agent, "max_speed", 80.0)
+            agent.vx = max(min(agent.vx, MAX_SPEED), -MAX_SPEED)
+            agent.vy = max(min(agent.vy, MAX_SPEED), -MAX_SPEED)
+
+        # ---- 4) Global trade metrics ----
+        self.state.global_metrics["tradeCount"] += trade_directions
+        cc = self.state.global_metrics["totalCollisions"]
+        tc = self.state.global_metrics["tradeCount"]
+        self.state.global_metrics["tradeSuccessRate"] = (tc / cc) if cc > 0 else 0.0
+
+        # ---- 5) Trust decay — per-group rate applied to that group's agents ----
         if self.decay_interval_ticks > 0 and self.tick_counter % self.decay_interval_ticks == 0:
             for group in self.state.groups.values():
                 decay = max(0.0, min(1.0, group.trust_decay))
-                trust_engine = TrustEngine(
-                    global_alpha=group.global_alpha,
-                    global_beta=group.global_beta,
-                )
-                trust_engine.apply_decay(group.agents, 1.0 - decay)
+                factor = 1.0 - decay
+                for agent in group.agents.values():
+                    agent.apply_decay(factor)
 
+        # ---- 6) Update metrics (global + per-group) ----
         self.state.update_metrics()
 
     def create_group(self, group_id: int, num_agents: int = 0, config: dict = None) -> dict:
-        """Create a group — works before or during simulation."""
         self._ensure_state()
         try:
             group = self.state.get_or_create_group(group_id, num_agents, config)
@@ -216,7 +266,6 @@ class SimulationEngine:
         return {"status": "ok", "groupId": group_id, "config": group.get_config()}
 
     def add_custom_agent(self, params: dict):
-        """Add batch of agents — works before or during simulation."""
         self._ensure_state()
 
         group_id = int(params.get("groupId", self.state.active_group_id))
@@ -270,7 +319,6 @@ class SimulationEngine:
         self.running = False
 
     def reset(self):
-        """Full reset — wipes all groups and state."""
         self.running = False
         self.state = None
         self.collision_detector = None

@@ -198,7 +198,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 existingGroupIds={existingGroupIds}
                 visibleGroupIds={visibleGroupIds}
                 onSwitchGroup={switchGroup}
-                onToggleVisibility={toggleGroupVisibility}
+                // onToggleVisibility={toggleGroupVisibility}
                 highlightedGroupId={highlightedGroupId}
                 onToggleHighlight={(id) => setHighlightedGroupId(highlightedGroupId === id ? null : id)}
             />

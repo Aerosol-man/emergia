@@ -123,6 +123,7 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
             setLastMetrics(newState.metrics);
         }
     }, []);
+
     useEffect(() => {
         if (isMock) {
             setIsConnected(true);
@@ -238,6 +239,11 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
 
     const updateGroupConfig = useCallback((groupId: number, config: Partial<GroupConfig>) => {
         sendAction({ type: 'update_group_config', payload: { groupId, config } });
+        // Optimistically update local state so sliders respond while paused
+        setGroupConfigs(prev => {
+            const existing = prev[groupId] || {};
+            return { ...prev, [groupId]: { ...existing, ...config } as GroupConfig };
+        });
     }, [sendAction]);
 
     const toggleGroupVisibility = useCallback((groupId: number) => {

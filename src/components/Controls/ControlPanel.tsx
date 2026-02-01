@@ -1,15 +1,8 @@
 import React, { useState } from 'react';
 import { ParameterSlider } from './ParameterSlider';
 import { ActionGroup } from './ActionGroup';
-import {
-    Users,
-    TrendingDown,
-    ShieldCheck,
-    ChevronDown,
-    ChevronUp,
-    Zap,
-    Activity
-} from 'lucide-react';
+import { Users, TrendingDown, ShieldCheck, ChevronDown, ChevronUp, Zap, UserPlus, Activity } from 'lucide-react';
+import { AgentMenu } from './AgentMenu'
 import type { ClientAction, SimulationConfig } from '../../types/simulation';
 
 interface ControlPanelProps {
@@ -30,6 +23,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
 
     const [isRunning, setIsRunning] = useState(false);
     const [maximized, setMaximized] = useState(true);
+    const [agentMenuOpen, setAgentMenuOpen] = useState(false);
 
     const handleChange = (key: keyof SimulationConfig, value: number) => {
         const newConfig = { ...config, [key]: value };
@@ -62,19 +56,23 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
             style={{
                 cursor: 'pointer',
                 padding: '0.5rem',
-                borderRadius: '50%',
+                borderRadius: '50%', 
                 background: 'var(--bg-accent-secondary)',
                 boxShadow: 'var(--shadow-md)',
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center'
-            }}
-        >
-            {maximized ? (
-                <ChevronUp size={20} style={{ color: 'var(--color-text-primary)' }} />
-            ) : (
-                <ChevronDown size={20} style={{ color: 'var(--color-text-primary)' }} />
-            )}
+                justifyContent: 'center',
+                flex: 0.25
+        }}>
+            {maximized ? <ChevronUp size={20} style={{ color: 'var(--color-text-primary)' }} /> : <ChevronDown size={20} style={{ color: 'var(--color-text-primary)' }} />}
+        </div>
+    );
+
+    const agentButton = (
+        <div
+            onClick={() => setAgentMenuOpen(true)}
+            style={{ cursor: 'pointer', flex: .3, margin: '0.5rem', padding: '0.5rem', borderRadius: '5%', background: 'var(--bg-accent-secondary)', boxShadow: 'var(--shadow-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.5rem' }}>
+            <UserPlus size={20} style={{ color: 'var(--color-text-primary)' }} />
         </div>
     );
 
@@ -136,6 +134,20 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
             >
                 System Status:{' '}
                 <span style={{ color: 'var(--color-success)' }}>ONLINE</span>
+            </div>
+
+            <div
+                style={{
+                    display: 'flex',
+                    flexDirection: 'row',
+                    marginBottom: '1rem',
+                }}
+            >
+                <div style={{ flex: 1, border: '1px solid var(--border-subtle)', borderRadius: '5%', display: 'flex', alignItems: 'center', fontSize: '0.9rem', fontWeight: 500, color: 'var(--color-text-primary)', flexDirection: 'row' }}>
+                    <Users size={16} style={{ marginRight: '0.5rem', color: 'var(--color-accent-primary)', flex: 1 }} />
+                    <div style={{flex: 2, padding: '0.5rem'}} >My Agents</div>
+                </div>
+                { agentMenuOpen ? <AgentMenu onClose={() => setAgentMenuOpen(false)} /> : agentButton }
             </div>
 
             <ActionGroup

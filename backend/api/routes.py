@@ -31,6 +31,12 @@ async def simulation_loop():
         await asyncio.sleep(1/30)
 
 
+async def idle_loop():
+    while True:
+        state = sim_engine.get_broadcast_state()
+        await ws_manager.broadcast(state)
+        await asyncio.sleep(1)
+
 @router.post("/simulation/start")
 async def start_simulation(params: StartParams):
     global simulation_task
@@ -80,6 +86,7 @@ async def update_parameters(params: ParameterUpdate):
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    global simulation_task
     await ws_manager.connect(websocket)
     try:
         while True:
@@ -147,9 +154,14 @@ async def websocket_endpoint(websocket: WebSocket):
                     num_agents = int(payload.get("numAgents", 0))
                     config = payload.get("config", None)
                     result = sim_engine.create_group(group_id, num_agents, config)
+                    if (not sim_engine.running):
+                        sim_engine.start(num_agents, 0, 0)
+                        sim_engine.pause()
+                        simulation_task = asyncio.create_task(idle_loop())
                     await ws_manager.send_personal_message(
                         {"type": "group_created", "payload": result}, websocket
                     )
+                    
                     print(f"CREATE_GROUP {group_id}: {result}")
                 except Exception as e:
                     print(f"Error CREATE_GROUP: {e}")

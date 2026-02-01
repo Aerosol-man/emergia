@@ -22,6 +22,12 @@ class SimulationEngine:
         self.collision_radius: float = 8.0
         self.decay_interval_ticks: int = 30
 
+        # social-physics parameters (LIVE)
+        self.soft_separation = 0.8
+        self.hard_separation = 6.0
+        self.neutral_separation = 2.0
+
+
     def set_broadcast_callback(self, callback: Callable):
         self.broadcast_callback = callback
 
@@ -304,6 +310,15 @@ class SimulationEngine:
             self.broadcast_interval = max(1, int(params["broadcast_interval"]))
         if "collision_radius" in params:
             self.collision_radius = float(params["collision_radius"])
+        if "decay_interval_ticks" in params:
+            self.decay_interval_ticks = max(1, int(params["decay_interval_ticks"]))
+        if "soft_separation" in params:
+            self.soft_separation = 100/float(params["soft_separation"])
+        if "hard_separation" in params:
+            self.hard_separation = float(params["hard_separation"])
+        if "neutral_separation" in params:
+            self.neutral_separation = float(params["neutral_separation"])
+            
         if self.state:
             group_params = {}
             if "trust_decay" in params:

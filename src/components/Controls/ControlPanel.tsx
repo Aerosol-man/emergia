@@ -2,28 +2,37 @@ import React, { useState } from 'react';
 import { ParameterSlider } from './ParameterSlider';
 import { ActionGroup } from './ActionGroup';
 import { Users, TrendingDown, ShieldCheck, ChevronDown, ChevronUp, Zap, UserPlus, Activity } from 'lucide-react';
-import { AgentMenu } from './AgentMenu'
+import { AgentMenu } from './AgentMenu';
+import { GroupToggle } from './GroupToggle';
 import { CustomAgentDisplay } from '../Dashboard/CustomAgentDisplay';
-import type { ClientAction, SimulationConfig } from '../../types/simulation';
+import type { ClientAction, SimulationConfig, GroupConfig } from '../../types/simulation';
 
 interface ControlPanelProps {
     sendAction: (action: ClientAction) => void;
-    agents?: any[]; // Avoiding full import cycle for now, or use type
+    agents?: any[];
+    activeGroupId: number;
+    existingGroupIds: number[];
+    groupConfigs: Record<number, GroupConfig>;
+    switchGroup: (groupId: number) => void;
+    updateGroupConfig: (groupId: number, config: Partial<GroupConfig>) => void;
 }
 
-export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction, agents = [] }) => {
-    // Debug Log
-    // console.log(`ControlPanel Render. Agents: ${agents.length}`);
-
+export const ControlPanel: React.FC<ControlPanelProps> = ({
+    sendAction,
+    agents = [],
+    activeGroupId,
+    existingGroupIds,
+    groupConfigs,
+    switchGroup,
+    updateGroupConfig,
+}) => {
     const [config, setConfig] = useState<SimulationConfig>({
         agentCount: 500,
         trustDecay: 0.05,
         trustQuota: 0.3,
         speedMultiplier: 1.0,
-
-        // 🔥 NEW — social physics controls
         softSeparation: 0.8,
-        hardSeparation: 6.0
+        hardSeparation: 6.0,
     });
 
     const [isRunning, setIsRunning] = useState(false);
@@ -31,32 +40,30 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction, agents =
     const [agentMenuOpen, setAgentMenuOpen] = useState(false);
     const [customAgentDisplayOpen, setCustomAgentDisplayOpen] = useState(false);
 
-    // Debug effect for state changes
-    React.useEffect(() => {
-        console.log("ControlPanel State:", { customAgentDisplayOpen, agentMenuOpen, agentsCount: agents.length });
-    }, [customAgentDisplayOpen, agentMenuOpen, agents.length]);
-
+    // Get the active group's config for slider values
+    const activeConfig = groupConfigs[activeGroupId];
 
     const handleChange = (key: keyof SimulationConfig, value: number) => {
         const newConfig = { ...config, [key]: value };
         setConfig(newConfig);
 
-        sendAction({
-            type: 'update_config',
-            payload: { [key]: value }
-        });
+        // Send as global update_config (affects active group via backend)
+        sendAction({ type: 'update_config', payload: { [key]: value } });
+    };
+
+    // Per-group config change — sends update_group_config
+    const handleGroupConfigChange = (key: keyof GroupConfig, value: number) => {
+        updateGroupConfig(activeGroupId, { [key]: value });
     };
 
     const handleStart = () => {
         setIsRunning(true);
         sendAction({ type: 'start', payload: config });
     };
-
     const handlePause = () => {
         setIsRunning(false);
         sendAction({ type: 'pause' });
     };
-
     const handleReset = () => {
         setIsRunning(false);
         sendAction({ type: 'reset' });
@@ -66,24 +73,27 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction, agents =
         <div
             onClick={() => setMaximized(!maximized)}
             style={{
-                cursor: 'pointer',
-                padding: '0.5rem',
-                borderRadius: '50%',
-                background: 'var(--bg-accent-secondary)',
-                boxShadow: 'var(--shadow-md)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flex: 0.015,
-            }}>
-            {maximized ? <ChevronUp size={20} style={{ color: 'var(--color-text-primary)' }} /> : <ChevronDown size={20} style={{ color: 'var(--color-text-primary)' }} />}
+                cursor: 'pointer', padding: '0.5rem', borderRadius: '50%',
+                background: 'var(--bg-accent-secondary)', boxShadow: 'var(--shadow-md)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 0.015,
+            }}
+        >
+            {maximized
+                ? <ChevronUp size={20} style={{ color: 'var(--color-text-primary)' }} />
+                : <ChevronDown size={20} style={{ color: 'var(--color-text-primary)' }} />}
         </div>
     );
 
     const agentButton = (
         <div
             onClick={() => setAgentMenuOpen(true)}
-            style={{ cursor: 'pointer', flex: .3, margin: '0.5rem', padding: '0.5rem', borderRadius: '5%', background: 'var(--bg-accent-tertiary)', color: 'var(--color-text-secondary)', boxShadow: 'var(--shadow-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.5rem' }}>
+            style={{
+                cursor: 'pointer', flex: 0.3, margin: '0.5rem', padding: '0.5rem',
+                borderRadius: '5%', background: 'var(--bg-accent-tertiary)',
+                color: 'var(--color-text-secondary)', boxShadow: 'var(--shadow-md)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.5rem',
+            }}
+        >
             <UserPlus size={20} />
         </div>
     );
@@ -92,16 +102,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction, agents =
         <div
             className="glass-panel"
             style={{
-                position: 'absolute',
-                width: '320px',
-                top: 20,
-                right: 20,
-                padding: '0.5rem',
-                borderRadius: '5%',
-                background: 'var(--bg-accent-secondary)',
-                boxShadow: 'var(--shadow-md)',
-                opacity: 0.7,
-                zIndex: 10
+                position: 'absolute', width: '320px', top: 20, right: 20,
+                padding: '0.5rem', borderRadius: '5%', background: 'var(--bg-accent-secondary)',
+                boxShadow: 'var(--shadow-md)', opacity: 0.7, zIndex: 10,
             }}
         >
             {toggleButton}
@@ -110,78 +113,54 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction, agents =
 
     const sliders = (
         <div style={{ flex: 1, overflowY: 'auto' }}>
-            <h3
-                style={{
-                    fontSize: '0.75rem',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    color: 'var(--color-text-muted)',
-                    marginBottom: '1rem'
-                }}
-            >
-                Parameters
+            <h3 style={{
+                fontSize: '0.75rem', textTransform: 'uppercase',
+                letterSpacing: '0.05em', color: 'var(--color-text-muted)', marginBottom: '0.5rem',
+            }}>
+                Group {activeGroupId} Parameters
             </h3>
 
             <ParameterSlider
                 label="Agent Count"
                 icon={Users}
                 value={config.agentCount}
-                min={10}
-                max={5000}
-                step={10}
+                min={10} max={5000} step={10}
                 onChange={(v) => handleChange('agentCount', v)}
             />
-
             <ParameterSlider
                 label="Trust Decay"
                 icon={TrendingDown}
-                value={config.trustDecay}
-                min={0}
-                max={0.2}
-                step={0.001}
-                onChange={(v) => handleChange('trustDecay', v)}
+                value={activeConfig?.trustDecay ?? config.trustDecay}
+                min={0} max={0.2} step={0.001}
+                onChange={(v) => handleGroupConfigChange('trustDecay', v)}
             />
-
             <ParameterSlider
                 label="Trust Quota"
                 icon={ShieldCheck}
-                value={config.trustQuota}
-                min={0}
-                max={1}
-                step={0.05}
-                onChange={(v) => handleChange('trustQuota', v)}
+                value={activeConfig?.trustQuota ?? config.trustQuota}
+                min={0} max={1} step={0.05}
+                onChange={(v) => handleGroupConfigChange('trustQuota', v)}
             />
-
             <ParameterSlider
                 label="Simulation Speed"
                 icon={Zap}
-                value={config.speedMultiplier}
-                min={0.1}
-                max={5.0}
-                step={0.1}
+                value={activeConfig?.speedMultiplier ?? config.speedMultiplier}
+                min={0.1} max={5.0} step={0.1}
                 unit="x"
-                onChange={(v) => handleChange('speedMultiplier', v)}
+                onChange={(v) => handleGroupConfigChange('speedMultiplier', v)}
             />
-
-            {/* 🔥 NEW — SOCIAL PHYSICS CONTROLS */}
-
             <ParameterSlider
                 label="Good Trade Stickiness"
                 icon={ShieldCheck}
                 value={config.softSeparation}
-                min={0.1}
-                max={3.0}
-                step={0.1}
+                min={0.1} max={3.0} step={0.1}
                 onChange={(v) => handleChange('softSeparation', v)}
             />
-
             <ParameterSlider
                 label="Bad Trade Repulsion"
                 icon={Activity}
                 value={config.hardSeparation}
-                min={1.0}
-                max={12.0}
-                step={0.5}
+                min={1.0} max={12.0} step={0.5}
                 onChange={(v) => handleChange('hardSeparation', v)}
             />
         </div>
@@ -191,56 +170,49 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction, agents =
         <aside
             className="glass-panel"
             style={{
-                width: '320px',
-                height: 'calc(100vh - 40px)',
-                position: 'absolute',
-                top: 20,
-                right: 20,
-                padding: '1rem',
-                borderRadius: 'var(--radius-lg)',
-                display: 'flex',
-                flexDirection: 'column',
-                zIndex: 10
+                width: '320px', height: 'calc(100vh - 40px)', position: 'absolute',
+                top: 20, right: 20, padding: '1rem', borderRadius: 'var(--radius-lg)',
+                display: 'flex', flexDirection: 'column', zIndex: 10,
             }}
         >
             {toggleButton}
 
-            <h2
-                style={{
-                    fontSize: '1.25rem',
-                    fontWeight: 700,
-                    marginBottom: '0.25rem',
-                    color: 'var(--color-text-primary)'
-                }}
-            >
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.25rem', color: 'var(--color-text-primary)' }}>
                 Emergia Control
             </h2>
-
-            <div
-                style={{
-                    fontSize: '0.85rem',
-                    color: 'var(--color-text-muted)',
-                    marginBottom: '2rem'
-                }}
-            >
-                System Status:{' '}
-                <span style={{ color: 'var(--color-success)' }}>ONLINE</span>
+            <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', marginBottom: '1rem' }}>
+                System Status: <span style={{ color: 'var(--color-success)' }}>ONLINE</span>
             </div>
 
-            <div
-                style={{
-                    display: 'flex',
-                    flexDirection: 'row',
-                    marginBottom: '1rem',
-                }}
-            >
+            {/* Group Toggle */}
+            <GroupToggle
+                activeGroupId={activeGroupId}
+                existingGroupIds={existingGroupIds}
+                onSwitchGroup={switchGroup}
+            />
+
+            <div style={{ display: 'flex', flexDirection: 'row', marginBottom: '1rem' }}>
                 <div
                     onClick={() => setCustomAgentDisplayOpen(!customAgentDisplayOpen)}
-                    style={{ flex: 2.3, border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', fontSize: '0.9rem', fontWeight: 500, color: 'var(--color-text-primary)', flexDirection: 'row', cursor: 'pointer', background: customAgentDisplayOpen ? 'var(--bg-accent-secondary)' : 'transparent' }}>
+                    style={{
+                        flex: 2.3, border: '1px solid var(--border-subtle)',
+                        borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center',
+                        fontSize: '0.9rem', fontWeight: 500, color: 'var(--color-text-primary)',
+                        flexDirection: 'row', cursor: 'pointer',
+                        background: customAgentDisplayOpen ? 'var(--bg-accent-secondary)' : 'transparent',
+                    }}
+                >
                     <Users size={16} style={{ marginRight: '0.5rem', color: 'var(--color-accent-primary)', flex: 1, marginLeft: '0.5rem' }} />
-                    <div style={{ flex: 2, padding: '0.5rem' }} >My Agents</div>
+                    <div style={{ flex: 2, padding: '0.5rem' }}>My Agents</div>
                 </div>
-                {agentMenuOpen ? <AgentMenu onClose={() => setAgentMenuOpen(false)} sendAction={sendAction} /> : agentButton}
+                {agentMenuOpen
+                    ? <AgentMenu
+                        onClose={() => setAgentMenuOpen(false)}
+                        sendAction={sendAction}
+                        activeGroupId={activeGroupId}
+                        existingGroupIds={existingGroupIds}
+                    />
+                    : agentButton}
             </div>
 
             <ActionGroup
@@ -250,20 +222,14 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction, agents =
                 onReset={handleReset}
             />
 
-            {customAgentDisplayOpen ? (
-                <CustomAgentDisplay agents={agents} />
-            ) : sliders}
+            {customAgentDisplayOpen
+                ? <CustomAgentDisplay agents={agents} />
+                : sliders}
 
-            <div
-                style={{
-                    marginTop: 'auto',
-                    paddingTop: '1rem',
-                    borderTop: '1px solid var(--border-subtle)',
-                    fontSize: '0.75rem',
-                    color: 'var(--color-text-muted)',
-                    textAlign: 'center'
-                }}
-            >
+            <div style={{
+                marginTop: 'auto', paddingTop: '1rem', borderTop: '1px solid var(--border-subtle)',
+                fontSize: '0.75rem', color: 'var(--color-text-muted)', textAlign: 'center',
+            }}>
                 Emergia v0.1.0-alpha
             </div>
         </aside>

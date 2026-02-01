@@ -193,7 +193,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
                     icon={Zap}
                     value={config.speedMultiplier}
                     min={0.1}
-                    max={5.0}
+                    max={20.0}
                     step={0.1}
                     unit="x"
                     onChange={(v) => handleChange('speedMultiplier', v)}
@@ -206,7 +206,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
                     icon={ShieldCheck}
                     value={config.softSeparation}
                     min={0.1}
-                    max={3.0}
+                    max={100.0}
                     step={0.1}
                     onChange={(v) => handleChange('softSeparation', v)}
                 />
@@ -216,8 +216,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
                     icon={Activity}
                     value={config.hardSeparation}
                     min={1.0}
-                    max={12.0}
+                    max={100.0}
                     step={0.5}
+                    // more sticky means less strength
                     onChange={(v) => handleChange('hardSeparation', v)}
                 />
             </div>

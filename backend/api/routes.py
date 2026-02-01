@@ -97,7 +97,6 @@ async def websocket_endpoint(websocket: WebSocket):
     try:
         while True:
             data = await websocket.receive_json()
-            print("Received WebSocket message >>> ", data)
             if isinstance(data, dict):
                 cmd_type = data.get("type")
                 if cmd_type == "start":

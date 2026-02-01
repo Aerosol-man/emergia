@@ -170,7 +170,8 @@ class SimulationEngine:
         # ---- 1) Single collision pass across ALL agents ----
         try:
             pairs = self.collision_detector.detect_collisions(all_agents)
-        except Exception:
+        except Exception as e:
+            print(f"[COLLISION ERROR] {e}")
             pairs = []
 
         self.state.global_metrics["totalCollisions"] += len(pairs)

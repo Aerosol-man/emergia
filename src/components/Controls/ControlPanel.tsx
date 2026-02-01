@@ -83,7 +83,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             style={{
                 cursor: 'pointer', padding: '0.5rem', borderRadius: '50%',
                 background: 'var(--bg-accent-secondary)', boxShadow: 'var(--shadow-md)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 0.015,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 0,
             }}
         >
             {maximized
@@ -96,13 +96,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         <div
             onClick={() => setAgentMenuOpen(true)}
             style={{
-                cursor: 'pointer', flex: 0.3, margin: '0.5rem', padding: '0.5rem',
-                borderRadius: '5%', background: 'var(--bg-accent-tertiary)',
-                color: 'var(--color-text-secondary)', boxShadow: 'var(--shadow-md)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.5rem',
+                cursor: 'pointer', margin: '0.5rem', padding: '0.8rem', font: '0.9rem', fontWeight: 600,
+                borderRadius: 'var(--border-radius-md)', background: 'var(--bg-accent-secondary)',
+                color: 'var(--color-text-primary)', boxShadow: 'var(--shadow-md)',
+                display: 'flex', alignItems: 'center', marginBottom: '0.15rem',
+                border: '1px solid var(--border-subtle)',
+                flexDirection: 'row', width: '310px',
             }}
         >
-            <UserPlus size={20} />
+            <span style={{ flex: 8 }} > Add Agents </span>
+            <UserPlus style={{ flex: 1 }}  size={20} />
         </div>
     );
 
@@ -204,19 +207,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             />
 
             <div style={{ display: 'flex', flexDirection: 'row', marginBottom: '1rem' }}>
-                <div
-                    onClick={() => setCustomAgentDisplayOpen(!customAgentDisplayOpen)}
-                    style={{
-                        flex: 2.3, border: '1px solid var(--border-subtle)',
-                        borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center',
-                        fontSize: '0.9rem', fontWeight: 500, color: 'var(--color-text-primary)',
-                        flexDirection: 'row', cursor: 'pointer',
-                        background: customAgentDisplayOpen ? 'var(--bg-accent-secondary)' : 'transparent',
-                    }}
-                >
-                    <Users size={16} style={{ marginRight: '0.5rem', color: 'var(--color-accent-primary)', flex: 1, marginLeft: '0.5rem' }} />
-                    <div style={{ flex: 2, padding: '0.5rem' }}>My Agents</div>
-                </div>
                 {agentMenuOpen
                     ? <AgentMenu
                         onClose={() => setAgentMenuOpen(false)}

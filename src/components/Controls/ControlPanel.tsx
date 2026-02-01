@@ -173,8 +173,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
                     icon={TrendingDown}
                     value={config.trustDecay}
                     min={0}
-                    max={0.2}
-                    step={0.001}
+                    max={1.0}
+                    step={0.01}
                     onChange={(v) => handleChange('trustDecay', v)}
                 />
 

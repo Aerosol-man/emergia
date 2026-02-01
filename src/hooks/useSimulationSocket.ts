@@ -9,9 +9,18 @@ const createMockState = (tick: number, config: SimulationConfig, width: number, 
     // Scale speed by multiplier
     const speed = 0.05 * config.speedMultiplier;
 
+    // Use separation values to influence mock clustering behaviour
+    const clusterTightness = config.softSeparation;   // higher = agents clump closer after good trades
+    const repulsionStrength = config.hardSeparation;   // higher = agents spread further after bad trades
+
     for (let i = 0; i < count; i++) {
         const angle = (tick * speed) + (i * (Math.PI * 2 / count));
-        const radius = 100 + (Math.sin(tick * 0.01 + i) * 50) + (config.trustQuota * 50);
+
+        // Base radius influenced by softSeparation (stickiness shrinks radius)
+        // and hardSeparation (repulsion expands it)
+        const baseRadius = 100 + (config.trustQuota * 50);
+        const separationOffset = (repulsionStrength * 5) - (clusterTightness * 15);
+        const radius = baseRadius + (Math.sin(tick * 0.01 + i) * 50) + separationOffset;
 
         agents.push({
             id: i,
@@ -51,7 +60,9 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
         agentCount: 50,
         trustDecay: 0.0,
         trustQuota: 0.3,
-        speedMultiplier: 1.0
+        speedMultiplier: 1.0,
+        softSeparation: 0.8,
+        hardSeparation: 6.0
     });
     const isMock = false;
 

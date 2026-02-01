@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from .agent import Agent
 
+print("DEBUG: LOADING backend/models/state.py")
 
 class SimulationState:
     def __init__(

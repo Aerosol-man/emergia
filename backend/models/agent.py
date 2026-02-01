@@ -5,6 +5,8 @@ from enum import IntEnum, auto
 import random
 import math
 
+print("DEBUG: LOADING backend/models/agent.py")
+
 class Skill(IntEnum):
     COOKING = auto()
     CODING = auto()
@@ -44,6 +46,7 @@ class Agent:
     # ✅ added for metrics + decay logic
     trade_count: int = 0
     last_trade_tick: int = 0
+    is_custom: bool = False
 
     @classmethod
     def create_random(
@@ -109,6 +112,8 @@ class Agent:
         return dx * dx + dy * dy
 
     def to_dict(self) -> dict:
+        if self.is_custom:
+            print(f"DEBUG: to_dict {id(self)} custom=True")
         return {
             "agent_id": self.agent_id,
             "x": self.x,
@@ -123,9 +128,13 @@ class Agent:
             "trust_beta": self.trust_beta,
             "trade_count": self.trade_count,
             "last_trade_tick": self.last_trade_tick,
+            "is_custom": self.is_custom,
+            "debug_id": id(self)
         }
 
     def to_minimal_dict(self) -> dict:
+        if self.is_custom:
+             print(f"DEBUG: to_minimal_dict {id(self)} custom=True")
         return {
             "id": self.agent_id,
             "x": self.x,
@@ -137,4 +146,6 @@ class Agent:
             "skillPossessed": int(self.skill_possessed),
             "skillNeeded": int(self.skill_needed),
             "tradeCount": self.trade_count,
+            "isCustom": self.is_custom,
+            "debug_id": id(self)
         }

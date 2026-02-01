@@ -10,7 +10,7 @@ const SimulationCanvas: React.FC = () => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const rendererRef = useRef<Renderer | null>(null);
 
-    const { stateBuffer, isConnected, sendAction, lastMetrics } = useSimulationSocket();
+    const { stateBuffer, isConnected, sendAction, lastMetrics, agents } = useSimulationSocket();
 
     useEffect(() => {
         if (!containerRef.current || !canvasRef.current) return;
@@ -51,7 +51,7 @@ const SimulationCanvas: React.FC = () => {
             </div>
 
             {/* Controls */}
-            <ControlPanel sendAction={sendAction} />
+            <ControlPanel sendAction={sendAction} agents={agents} />
 
             {/* Metrics Charts (Top Left) */}
             <MetricsCharts metrics={lastMetrics} />

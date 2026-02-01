@@ -47,21 +47,33 @@ class TrustEngine:
 
         # CASE 2: Seller satisfied but buyer not -> Seller trust DOWN
         elif seller_ok and (not buyer_ok):
-            trust_delta_seller = -self.global_beta
-            self._case_2_seller_meets_buyer_doesnt(seller, buyer)
+            # Seller gets penalized. Use seller's specific beta penalty? 
+            # Or the system global penalty?
+            # User requirement: "specify a unique set of parameters" for the custom agent.
+            # Interpreting "Transaction Failure Loss" as "How much I lose when I fail" or "How much I punish"?
+            # Typically "My Trust Dynamics parameters" govern how *my* trust changes.
+            # So if Seller's trust is changing, we use Seller's beta.
+            
+            beta = getattr(seller, "trust_beta", self.global_beta)
+            trust_delta_seller = -beta
+            self._case_2_seller_meets_buyer_doesnt(seller, buyer, beta)
             case = "case_2_seller_meets_buyer_doesnt"
 
         # CASE 3: Buyer satisfied but seller not -> Buyer trust DOWN
         elif buyer_ok and (not seller_ok):
-            trust_delta_buyer = -self.global_beta
-            self._case_3_buyer_meets_seller_doesnt(buyer, seller)
+            beta = getattr(buyer, "trust_beta", self.global_beta)
+            trust_delta_buyer = -beta
+            self._case_3_buyer_meets_seller_doesnt(buyer, seller, beta)
             case = "case_3_buyer_meets_seller_doesnt"
 
         # CASE 4: Both satisfied with trust quotas (and skill match already true) -> both trust UP
         else:
-            trust_delta_seller = +self.global_alpha
-            trust_delta_buyer = +self.global_alpha
-            self._case_4_both_meet_skills_match(seller, buyer)
+            alpha_s = getattr(seller, "trust_alpha", self.global_alpha)
+            alpha_b = getattr(buyer, "trust_alpha", self.global_alpha)
+            
+            trust_delta_seller = +alpha_s
+            trust_delta_buyer = +alpha_b
+            self._case_4_both_meet_skills_match(seller, buyer, alpha_s, alpha_b)
             case = "case_4_both_meet_skills_match"
             trade = True
 
@@ -80,18 +92,18 @@ class TrustEngine:
         # Explicitly do nothing
         return
 
-    def _case_2_seller_meets_buyer_doesnt(self, seller: Agent, buyer: Agent):
+    def _case_2_seller_meets_buyer_doesnt(self, seller: Agent, buyer: Agent, beta: float):
         """Seller trust DOWN"""
-        seller.trust = self._clamp_trust(seller.trust - self.global_beta)
+        seller.trust = self._clamp_trust(seller.trust - beta)
 
-    def _case_3_buyer_meets_seller_doesnt(self, buyer: Agent, seller: Agent):
+    def _case_3_buyer_meets_seller_doesnt(self, buyer: Agent, seller: Agent, beta: float):
         """Buyer trust DOWN"""
-        buyer.trust = self._clamp_trust(buyer.trust - self.global_beta)
+        buyer.trust = self._clamp_trust(buyer.trust - beta)
 
-    def _case_4_both_meet_skills_match(self, agent1: Agent, agent2: Agent):
+    def _case_4_both_meet_skills_match(self, agent1: Agent, agent2: Agent, alpha1: float, alpha2: float):
         """Both trust UP"""
-        agent1.trust = self._clamp_trust(agent1.trust + self.global_alpha)
-        agent2.trust = self._clamp_trust(agent2.trust + self.global_alpha)
+        agent1.trust = self._clamp_trust(agent1.trust + alpha1)
+        agent2.trust = self._clamp_trust(agent2.trust + alpha2)
 
     def apply_decay(self, agents: dict[int, Agent], decay_rate: float):
         """

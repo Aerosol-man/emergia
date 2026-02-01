@@ -241,6 +241,11 @@ class SimulationState:
         }
 
     def to_broadcast_dict(self) -> dict:
+        # ALL agents from ALL groups — they share one canvas
+        all_agents = []
+        for g in self.groups.values():
+            all_agents.extend(a.to_minimal_dict() for a in g.agents.values())
+
         return {
             "type": "state_update",
             "payload": {
@@ -250,7 +255,7 @@ class SimulationState:
                     str(gid): g.to_broadcast_dict()
                     for gid, g in self.groups.items()
                 },
-                "agents": [a.to_minimal_dict() for a in self.active_group.agents.values()],
+                "agents": all_agents,
                 "metrics": dict(self.active_group.metrics),
                 "bounds": self.bounds,
             },

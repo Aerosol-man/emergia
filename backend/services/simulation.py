@@ -8,7 +8,6 @@ from services.collision_response import (
     apply_hard_bounce,
 )
 from typing import Optional, Callable
-import asyncio
 
 
 class SimulationEngine:
@@ -27,13 +26,68 @@ class SimulationEngine:
     def set_broadcast_callback(self, callback: Callable):
         self.broadcast_callback = callback
 
+    def _ensure_state(self, trust_decay: float = 0.05, trust_quota: float = 0.3):
+        """Create empty state container if it doesn't exist yet."""
+        if not self.state:
+            self.state = SimulationState(
+                num_agents=0,
+                trust_decay=float(trust_decay),
+                trust_quota=float(trust_quota),
+            )
+        if not self.collision_detector:
+            self.collision_detector = CollisionDetector(
+                collision_radius=self.collision_radius
+            )
+
     def start(self, num_agents: int, trust_decay: float, trust_quota: float):
-        self.state = SimulationState(
-            num_agents=int(num_agents),
-            trust_decay=float(trust_decay),
-            trust_quota=float(trust_quota),
-        )
-        self.collision_detector = CollisionDetector(collision_radius=self.collision_radius)
+        """Start the simulation loop.
+
+        If groups were pre-configured, keeps them and just starts running.
+        If no state exists yet, creates Group 0 with num_agents.
+        If state exists but has zero agents anywhere, populates Group 0.
+        """
+        if self.state and self.state.tick > 0:
+            # Was paused — just resume
+            self.running = True
+            return
+
+        if not self.state:
+            # Fresh start — create state with Group 0
+            self.state = SimulationState(
+                num_agents=int(num_agents),
+                trust_decay=float(trust_decay),
+                trust_quota=float(trust_quota),
+            )
+        else:
+            # State exists from pre-config
+            self.state.trust_decay = float(trust_decay)
+            self.state.trust_quota = float(trust_quota)
+
+            # If no agents anywhere, populate Group 0
+            total_agents = sum(g.agent_count for g in self.state.groups.values())
+            if total_agents == 0:
+                if 0 in self.state.groups:
+                    group = self.state.groups[0]
+                    group.trust_decay = float(trust_decay)
+                    group.trust_quota = float(trust_quota)
+                    from models.agent import Agent
+                    for _ in range(int(num_agents)):
+                        agent = Agent.create_random(
+                            agent_id=self.state.allocate_agent_id(),
+                            bounds=self.state.bounds,
+                            max_speed=self.state.max_speed,
+                            trust_quota=float(trust_quota),
+                        )
+                        agent.group_id = 0
+                        group.add_agent(agent)
+                else:
+                    self.state._init_group(0, int(num_agents))
+
+        if not self.collision_detector:
+            self.collision_detector = CollisionDetector(
+                collision_radius=self.collision_radius
+            )
+
         self.running = True
         self.tick_counter = 0
 
@@ -45,13 +99,11 @@ class SimulationEngine:
 
         bounds = self.state.bounds
 
-        # Use this group's trust engine params
         trust_engine = TrustEngine(
             global_alpha=group.global_alpha,
             global_beta=group.global_beta,
         )
 
-        # dt scaled by group's speed multiplier
         dt = self.dt * group.speed_multiplier
 
         # 1) Collisions
@@ -116,11 +168,9 @@ class SimulationEngine:
         self.tick_counter += 1
         self.state.tick += 1
 
-        # Step ALL groups independently
         for group in self.state.groups.values():
             self._step_group(group)
 
-        # Trust decay per group using that group's own decay rate
         if self.decay_interval_ticks > 0 and self.tick_counter % self.decay_interval_ticks == 0:
             for group in self.state.groups.values():
                 decay = max(0.0, min(1.0, group.trust_decay))
@@ -133,8 +183,8 @@ class SimulationEngine:
         self.state.update_metrics()
 
     def create_group(self, group_id: int, num_agents: int = 0, config: dict = None) -> dict:
-        if not self.state:
-            return {"error": "Simulation not running"}
+        """Create a group — works before or during simulation."""
+        self._ensure_state()
         try:
             group = self.state.get_or_create_group(group_id, num_agents, config)
             return {
@@ -148,7 +198,7 @@ class SimulationEngine:
 
     def switch_group(self, group_id: int) -> dict:
         if not self.state:
-            return {"error": "Simulation not running"}
+            return {"error": "No simulation state"}
         try:
             self.state.switch_group(group_id)
             return {"status": "ok", "activeGroupId": group_id}
@@ -156,9 +206,8 @@ class SimulationEngine:
             return {"error": str(e)}
 
     def update_group_config(self, group_id: int, params: dict) -> dict:
-        """Update config for a specific group independently."""
         if not self.state:
-            return {"error": "Simulation not running"}
+            return {"error": "No simulation state"}
         if group_id not in self.state.groups:
             return {"error": f"Group {group_id} does not exist"}
         group = self.state.groups[group_id]
@@ -167,8 +216,8 @@ class SimulationEngine:
         return {"status": "ok", "groupId": group_id, "config": group.get_config()}
 
     def add_custom_agent(self, params: dict):
-        if not self.state:
-            return
+        """Add batch of agents — works before or during simulation."""
+        self._ensure_state()
 
         group_id = int(params.get("groupId", self.state.active_group_id))
         num_agents = int(params.get("numAgents", 1))
@@ -198,7 +247,6 @@ class SimulationEngine:
         return self.tick_counter % self.broadcast_interval == 0
 
     def update_parameters(self, params: dict):
-        """Update global params (backward compat — affects active group)."""
         if not params:
             return
         if "dt" in params:
@@ -208,15 +256,13 @@ class SimulationEngine:
         if "collision_radius" in params:
             self.collision_radius = float(params["collision_radius"])
         if self.state:
-            # Route to active group
             group_params = {}
             if "trust_decay" in params:
                 group_params["trustDecay"] = params["trust_decay"]
             if "trust_quota" in params:
                 group_params["trustQuota"] = params["trust_quota"]
-            if "speedMultiplier" in params or "dt" in params:
-                if "speedMultiplier" in params:
-                    group_params["speedMultiplier"] = params["speedMultiplier"]
+            if "speedMultiplier" in params:
+                group_params["speedMultiplier"] = params["speedMultiplier"]
             if group_params:
                 self.state.active_group.update_config(group_params)
 
@@ -224,6 +270,7 @@ class SimulationEngine:
         self.running = False
 
     def reset(self):
+        """Full reset — wipes all groups and state."""
         self.running = False
         self.state = None
         self.collision_detector = None

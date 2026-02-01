@@ -27,7 +27,6 @@ class SimulationEngine:
         self.hard_separation = 6.0
         self.neutral_separation = 2.0
 
-
     def set_broadcast_callback(self, callback: Callable):
         self.broadcast_callback = callback
 
@@ -58,25 +57,28 @@ class SimulationEngine:
         """Resolve trust for a collision pair ONCE.
 
         Checks both skill directions.
-        Each agent's trust changes use their OWN group's alpha/beta.
+        Each agent's trust changes use their group's alpha/beta.
+        Custom agents can override with their own values.
         Returns True if a trade occurred.
         """
         # Check skill match in both directions
-        ab_match = (a.skill_possessed == b.skill_needed)  # a can sell to b
-        ba_match = (b.skill_possessed == a.skill_needed)  # b can sell to a
+        ab_match = (a.skill_possessed == b.skill_needed)
+        ba_match = (b.skill_possessed == a.skill_needed)
 
         if not ab_match and not ba_match:
-            # No skill match at all — no trust change
             return False
 
+        # Get group params as base
         a_alpha, a_beta = self._get_group_params(a)
         b_alpha, b_beta = self._get_group_params(b)
 
-        # Use per-agent overrides if set (custom agents)
-        a_alpha = getattr(a, "trust_alpha", a_alpha)
-        a_beta = getattr(a, "trust_beta", a_beta)
-        b_alpha = getattr(b, "trust_alpha", b_alpha)
-        b_beta = getattr(b, "trust_beta", b_beta)
+        # Only custom agents override with per-agent values
+        if getattr(a, "is_custom", False):
+            a_alpha = a.trust_alpha
+            a_beta = a.trust_beta
+        if getattr(b, "is_custom", False):
+            b_alpha = b.trust_alpha
+            b_beta = b.trust_beta
 
         a_ok = (a.trust >= a.trust_quota)
         b_ok = (b.trust >= b.trust_quota)
@@ -228,13 +230,16 @@ class SimulationEngine:
         tc = self.state.global_metrics["tradeCount"]
         self.state.global_metrics["tradeSuccessRate"] = (tc / cc) if cc > 0 else 0.0
 
-        # ---- 5) Trust decay — per-group rate applied to that group's agents ----
+        # ---- 5) Trust decay — only agents who haven't traded in 30+ ticks ----
         if self.decay_interval_ticks > 0 and self.tick_counter % self.decay_interval_ticks == 0:
+            current_tick = self.state.tick
             for group in self.state.groups.values():
                 decay = max(0.0, min(1.0, group.trust_decay))
                 factor = 1.0 - decay
                 for agent in group.agents.values():
-                    agent.apply_decay(factor)
+                    ticks_since_trade = current_tick - agent.last_trade_tick
+                    if ticks_since_trade >= self.decay_interval_ticks:
+                        agent.apply_decay(factor)
 
         # ---- 6) Update metrics (global + per-group) ----
         self.state.update_metrics()
@@ -318,7 +323,7 @@ class SimulationEngine:
             self.hard_separation = float(params["hard_separation"])
         if "neutral_separation" in params:
             self.neutral_separation = float(params["neutral_separation"])
-            
+
         if self.state:
             group_params = {}
             if "trust_decay" in params:

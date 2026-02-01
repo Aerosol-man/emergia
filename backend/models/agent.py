@@ -5,7 +5,6 @@ from enum import IntEnum, auto
 import random
 import math
 
-print("DEBUG: LOADING backend/models/agent.py")
 
 class Skill(IntEnum):
     COOKING = auto()
@@ -43,10 +42,10 @@ class Agent:
     trust_alpha: float = 1.0
     trust_beta: float = 1.0
 
-    # ✅ added for metrics + decay logic
     trade_count: int = 0
     last_trade_tick: int = 0
     is_custom: bool = False
+    group_id: int = 0
 
     @classmethod
     def create_random(
@@ -98,13 +97,17 @@ class Agent:
     def can_provide_skill_to(self, other: 'Agent') -> bool:
         return self.skill_possessed == other.skill_needed
 
+    def skills_match(self, other: 'Agent') -> bool:
+        return self.can_provide_skill_to(other) and other.can_provide_skill_to(self)
+
     def adjust_trust(self, delta: float) -> None:
         self.trust = max(0.0, min(1.0, self.trust + delta))
 
-    def apply_decay(self, decay_rate: float, current_tick: int = 0, grace_period: int = 0) -> None:
-        """Only decay trust if agent hasn't had a successful trade within grace_period ticks"""
-        if grace_period <= 0 or (current_tick - self.last_trade_tick) >= grace_period:
-            self.trust *= decay_rate
+    def apply_decay(self, decay_rate: float) -> None:
+        self.trust = max(0.0, min(1.0, self.trust * decay_rate))
+
+    def distance_to(self, other: 'Agent') -> float:
+        return math.sqrt(self.distance_squared_to(other))
 
     def distance_squared_to(self, other: 'Agent') -> float:
         dx = self.x - other.x
@@ -112,8 +115,6 @@ class Agent:
         return dx * dx + dy * dy
 
     def to_dict(self) -> dict:
-        if self.is_custom:
-            print(f"DEBUG: to_dict {id(self)} custom=True")
         return {
             "agent_id": self.agent_id,
             "x": self.x,
@@ -129,12 +130,10 @@ class Agent:
             "trade_count": self.trade_count,
             "last_trade_tick": self.last_trade_tick,
             "is_custom": self.is_custom,
-            "debug_id": id(self)
+            "group_id": self.group_id,
         }
 
     def to_minimal_dict(self) -> dict:
-        if self.is_custom:
-             print(f"DEBUG: to_minimal_dict {id(self)} custom=True")
         return {
             "id": self.agent_id,
             "x": self.x,
@@ -147,5 +146,13 @@ class Agent:
             "skillNeeded": int(self.skill_needed),
             "tradeCount": self.trade_count,
             "isCustom": self.is_custom,
-            "debug_id": id(self)
+            "groupId": self.group_id,
         }
+
+    def __eq__(self, other):
+        if not isinstance(other, Agent):
+            return NotImplemented
+        return self.agent_id == other.agent_id
+
+    def __hash__(self):
+        return hash(self.agent_id)

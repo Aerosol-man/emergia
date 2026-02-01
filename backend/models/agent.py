@@ -98,8 +98,10 @@ class Agent:
     def adjust_trust(self, delta: float) -> None:
         self.trust = max(0.0, min(1.0, self.trust + delta))
 
-    def apply_decay(self, decay_rate: float) -> None:
-        self.trust *= decay_rate
+    def apply_decay(self, decay_rate: float, current_tick: int = 0, grace_period: int = 0) -> None:
+        """Only decay trust if agent hasn't had a successful trade within grace_period ticks"""
+        if grace_period <= 0 or (current_tick - self.last_trade_tick) >= grace_period:
+            self.trust *= decay_rate
 
     def distance_squared_to(self, other: 'Agent') -> float:
         dx = self.x - other.x

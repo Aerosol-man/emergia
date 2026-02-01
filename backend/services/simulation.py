@@ -148,7 +148,8 @@ class SimulationEngine:
         # ---- 5) Trust decay ----
         if self.decay_interval_ticks > 0 and self.tick_counter % self.decay_interval_ticks == 0:
             decay = max(0.0, min(1.0, self.state.trust_decay))
-            self.trust_engine.apply_decay(agents_dict, 1.0 - decay)
+            for agent in agents_dict.values():
+                agent.apply_decay(1.0 - decay, self.state.tick, self.decay_interval_ticks)
 
         # ---- 6) Aggregate metrics ----
         self.state.update_metrics()

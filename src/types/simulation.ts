@@ -27,6 +27,8 @@ export interface SimulationConfig {
     trustDecay: number;
     trustQuota: number;
     speedMultiplier: number;
+    softSeparation: number;
+    hardSeparation: number;
 }
 
 /**

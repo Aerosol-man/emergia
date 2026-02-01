@@ -52,7 +52,7 @@ class CollisionDetector:
     
     __slots__ = ('collision_radius', 'collision_radius_sq', 'grid')
     
-    def __init__(self, collision_radius: float = 10.0):
+    def __init__(self, collision_radius: float = 50.0):
         self.collision_radius = collision_radius
         self.collision_radius_sq = collision_radius * collision_radius
         # Cell size should be >= collision diameter for correctness

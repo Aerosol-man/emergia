@@ -127,15 +127,15 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction, agents =
                 onChange={(v) => handleChange('agentCount', v)}
             />
 
-            <ParameterSlider
-                label="Trust Decay"
-                icon={TrendingDown}
-                value={config.trustDecay}
-                min={0}
-                max={0.2}
-                step={0.001}
-                onChange={(v) => handleChange('trustDecay', v)}
-            />
+                <ParameterSlider
+                    label="Trust Decay"
+                    icon={TrendingDown}
+                    value={config.trustDecay}
+                    min={0}
+                    max={1.0}
+                    step={0.01}
+                    onChange={(v) => handleChange('trustDecay', v)}
+                />
 
             <ParameterSlider
                 label="Trust Quota"
@@ -147,36 +147,37 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction, agents =
                 onChange={(v) => handleChange('trustQuota', v)}
             />
 
-            <ParameterSlider
-                label="Simulation Speed"
-                icon={Zap}
-                value={config.speedMultiplier}
-                min={0.1}
-                max={5.0}
-                step={0.1}
-                unit="x"
-                onChange={(v) => handleChange('speedMultiplier', v)}
-            />
+                <ParameterSlider
+                    label="Simulation Speed"
+                    icon={Zap}
+                    value={config.speedMultiplier}
+                    min={0.1}
+                    max={20.0}
+                    step={0.1}
+                    unit="x"
+                    onChange={(v) => handleChange('speedMultiplier', v)}
+                />
 
             {/* 🔥 NEW — SOCIAL PHYSICS CONTROLS */}
 
-            <ParameterSlider
-                label="Good Trade Stickiness"
-                icon={ShieldCheck}
-                value={config.softSeparation}
-                min={0.1}
-                max={3.0}
-                step={0.1}
-                onChange={(v) => handleChange('softSeparation', v)}
-            />
+                <ParameterSlider
+                    label="Good Trade Stickiness"
+                    icon={ShieldCheck}
+                    value={config.softSeparation}
+                    min={0.1}
+                    max={100.0}
+                    step={0.1}
+                    onChange={(v) => handleChange('softSeparation', v)}
+                />
 
             <ParameterSlider
                 label="Bad Trade Repulsion"
                 icon={Activity}
                 value={config.hardSeparation}
                 min={1.0}
-                max={12.0}
+                max={100.0}
                 step={0.5}
+                    // more sticky means less strength
                 onChange={(v) => handleChange('hardSeparation', v)}
             />
         </div>

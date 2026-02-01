@@ -30,6 +30,12 @@ class SimulationEngine:
         self.collision_radius: float = 8.0
         self.decay_interval_ticks: int = 30  # apply decay every X ticks
 
+        # social-physics parameters (LIVE)
+        self.soft_separation = 0.8
+        self.hard_separation = 6.0
+        self.neutral_separation = 2.0
+
+
     def set_broadcast_callback(self, callback: Callable):
         """Set callback for broadcasting state updates"""
         self.broadcast_callback = callback
@@ -103,9 +109,9 @@ class SimulationEngine:
             radius = self.collision_detector.collision_radius
 
             if trade_ab and trade_ba:
-                apply_soft_separation(a, b, radius)
+                apply_soft_separation(a, b, radius, self.soft_separation)
             elif trade_ab ^ trade_ba:
-                apply_hard_bounce(a, b, radius)
+                apply_hard_bounce(a, b, radius, self.hard_separation)
             else:
                 apply_neutral_bounce(a, b, radius)
                 # neutral
@@ -142,7 +148,8 @@ class SimulationEngine:
         # ---- 5) Trust decay ----
         if self.decay_interval_ticks > 0 and self.tick_counter % self.decay_interval_ticks == 0:
             decay = max(0.0, min(1.0, self.state.trust_decay))
-            self.trust_engine.apply_decay(agents_dict, 1.0 - decay)
+            for agent in agents_dict.values():
+                agent.apply_decay(1.0 - decay, self.state.tick, self.decay_interval_ticks)
 
     # ---- 6) Aggregate metrics ----
         self.state.update_metrics()
@@ -202,7 +209,13 @@ class SimulationEngine:
             self.collision_radius = float(params["collision_radius"])
         if "decay_interval_ticks" in params:
             self.decay_interval_ticks = max(1, int(params["decay_interval_ticks"]))
-
+        if "soft_separation" in params:
+            self.soft_separation = 100/float(params["soft_separation"])
+        if "hard_separation" in params:
+            self.hard_separation = float(params["hard_separation"])
+        if "neutral_separation" in params:
+            self.neutral_separation = float(params["neutral_separation"])
+            
         if self.state:
             if "trust_decay" in params:
                 self.state.trust_decay = float(params["trust_decay"])

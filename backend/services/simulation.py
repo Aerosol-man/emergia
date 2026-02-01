@@ -6,7 +6,34 @@ from services.collision_response import (
     apply_neutral_bounce,
     apply_hard_bounce,
 )
-from typing import Optional, Callable
+from typing import Optional, Callable, List
+
+def _safe_median(values: List[float]) -> float:
+    if not values:
+        return 0.0
+    s = sorted(values)
+    n = len(s)
+    mid = n // 2
+    if n % 2 == 1:
+        return float(s[mid])
+    return float((s[mid - 1] + s[mid]) / 2.0)
+
+
+def _trust_stats(values: List[float]) -> dict:
+    if not values:
+        return {"avg": 0.0, "median": 0.0, "min": 0.0, "max": 0.0}
+    return {
+        "avg": float(sum(values) / len(values)),
+        "median": float(_safe_median(values)),
+        "min": float(min(values)),
+        "max": float(max(values)),
+    }
+
+
+def _series_stats(values: List[float]) -> dict:
+    # same as trust stats, but semantically “over time series”
+    return _trust_stats(values)
+
 
 
 class SimulationEngine:
@@ -27,11 +54,24 @@ class SimulationEngine:
         self.hard_separation = 6.0
         self.neutral_separation = 2.0
 
+
+        # Rolling reports (every X ticks)
+        
+        # (Optional) keep gini/avgTrust time series for global even without reports
+        # We'll mainly rely on reports, but this can help debugging
+        self.global_series: dict = {
+            "avgTrust": [],
+            "giniCoefficient": [],
+        }
+
+
     def set_broadcast_callback(self, callback: Callable):
         self.broadcast_callback = callback
 
     def _ensure_state(self, trust_decay: float = 0.05, trust_quota: float = 0.3):
         """Create empty state container if it doesn't exist yet."""
+        self.state.report_interval_ticks = self.report_interval_ticks
+
         if not self.state:
             self.state = SimulationState(
                 num_agents=0,
@@ -174,7 +214,9 @@ class SimulationEngine:
             print(f"[COLLISION ERROR] {e}")
             pairs = []
 
+        # Global collision count (pairs)
         self.state.global_metrics["totalCollisions"] += len(pairs)
+
         trade_directions = 0
 
         # ---- 2) Resolve collisions ----
@@ -182,12 +224,29 @@ class SimulationEngine:
             a = all_agents[id_a]
             b = all_agents[id_b]
 
+            ga = self.state.groups.get(a.group_id)
+            gb = self.state.groups.get(b.group_id)
+
+            # Per-group collision counters:
+            # If cross-group collision, count for BOTH groups (exposure).
+            if ga:
+                ga.counters["totalCollisions"] += 1
+            if gb and gb is not ga:
+                gb.counters["totalCollisions"] += 1
+
             # Resolve trust ONCE per pair.
             # Each agent's trust change uses their OWN group's alpha/beta.
             trade = self._resolve_collision_trust(a, b)
 
             if trade:
                 trade_directions += 1
+
+                # Per-group trade counters (count for both groups if cross-group)
+                if ga:
+                    ga.counters["tradeCount"] += 1
+                if gb and gb is not ga:
+                    gb.counters["tradeCount"] += 1
+
                 a.trade_count += 1
                 b.trade_count += 1
                 a.last_trade_tick = self.state.tick
@@ -220,7 +279,9 @@ class SimulationEngine:
         for agent in all_agents.values():
             group = self.state.groups.get(agent.group_id)
             speed_mult = group.speed_multiplier if group else 1.0
+
             agent.update_position(self.dt * speed_mult, bounds)
+
             MAX_SPEED = getattr(agent, "max_speed", 80.0)
             agent.vx = max(min(agent.vx, MAX_SPEED), -MAX_SPEED)
             agent.vy = max(min(agent.vy, MAX_SPEED), -MAX_SPEED)
@@ -244,6 +305,24 @@ class SimulationEngine:
 
         # ---- 6) Update metrics (global + per-group) ----
         self.state.update_metrics()
+
+        # ---- 7) Rolling report snapshot ----
+        interval = max(1, int(getattr(self.state, "report_interval_ticks", 60)))
+        if self.state.tick % interval == 0:
+            self.state.record_report_snapshot()
+
+    def end(self) -> dict:
+        """
+        Pause simulation and return the aggregated final report.
+        """
+        if not self.state:
+            return {"error": "No simulation state"}
+        self.running = False
+        # Make sure we have a final snapshot at end boundary if desired:
+        # (optional) record one last snapshot
+        self.state.record_report_snapshot()
+        return self.state.compile_final_report()
+
 
     def create_group(self, group_id: int, num_agents: int = 0, config: dict = None) -> dict:
         self._ensure_state()
@@ -354,3 +433,5 @@ class SimulationEngine:
         if self.state:
             return self.state.to_broadcast_dict()
         return {}
+    
+

@@ -255,15 +255,15 @@ class SimulationEngine:
             # Physics — same for everyone
             radius = self.collision_detector.collision_radius
             if trade:
-                apply_soft_separation(a, b, radius)
+                apply_soft_separation(a, b, radius, self.soft_separation)
             else:
                 # Check if skills matched at all (at least one direction)
                 skills_ab = (a.skill_possessed == b.skill_needed)
                 skills_ba = (b.skill_possessed == a.skill_needed)
                 if skills_ab or skills_ba:
-                    apply_hard_bounce(a, b, radius)
+                    apply_hard_bounce(a, b, radius, self.hard_separation)
                 else:
-                    apply_neutral_bounce(a, b, radius)
+                    apply_neutral_bounce(a, b, radius, self.neutral_separation)
 
             self.state.collision_log_global.append({
                 "tick": self.state.tick,

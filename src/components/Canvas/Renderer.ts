@@ -20,6 +20,8 @@ export class Renderer {
         .range(['#ef4444', '#eab308', '#22c55e']) // Red -> Yellow -> Green
         .clamp(true);
 
+
+
     constructor(canvas: HTMLCanvasElement, width: number, height: number, stateBuffer: React.MutableRefObject<SimulationState[]>) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d', { alpha: false }) as CanvasRenderingContext2D; // optimization
@@ -131,7 +133,7 @@ export class Renderer {
             }
 
             // 1. Size
-            const radius = 3 + Math.min(agent.tradeCount * 0.5, 5);
+            const radius = 3 + Math.min(agent.tradeCount * 0.5, 10);
 
             // 2. Color
             const color = this.colorScale(agent.trust);
@@ -144,10 +146,37 @@ export class Renderer {
                 ctx.shadowBlur = 0;
             }
 
-            // Draw Agent Body
+            // Draw Agent Body (Shape based on Group ID)
             ctx.beginPath();
-            ctx.arc(cx, cy, radius, 0, Math.PI * 2);
             ctx.fillStyle = color;
+
+            // Shape Logic
+            const shapeType = agent.groupId % 4;
+
+            if (shapeType === 0) {
+                // Circle (Group 0)
+                ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+            }
+            else if (shapeType === 1) {
+                // Square (Group 1)
+                ctx.rect(cx - radius, cy - radius, radius * 2, radius * 2);
+            }
+            else if (shapeType === 2) {
+                // Triangle (Group 2)
+                ctx.moveTo(cx, cy - radius);
+                ctx.lineTo(cx + radius, cy + radius);
+                ctx.lineTo(cx - radius, cy + radius);
+                ctx.closePath();
+            }
+            else {
+                // Diamond (Group 3)
+                ctx.moveTo(cx, cy - radius); // Top
+                ctx.lineTo(cx + radius, cy); // Right
+                ctx.lineTo(cx, cy + radius); // Bottom
+                ctx.lineTo(cx - radius, cy); // Left
+                ctx.closePath();
+            }
+
             ctx.fill();
 
             // 4. Flash Animation

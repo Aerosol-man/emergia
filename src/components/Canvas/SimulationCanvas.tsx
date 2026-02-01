@@ -5,6 +5,8 @@ import { ControlPanel } from '../Controls/ControlPanel';
 import { StatsOverlay } from '../Dashboard/StatsOverlay';
 import { MetricsCharts } from '../Dashboard/MetricsCharts';
 
+import { FinalReportPopup } from '../Dashboard/FinalReportPopup';
+
 const SimulationCanvas: React.FC = () => {
     const containerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -23,7 +25,15 @@ const SimulationCanvas: React.FC = () => {
         switchGroup,
         updateGroupConfig,
         toggleGroupVisibility,
+        finalReport,
+        setFinalReport,
     } = useSimulationSocket();
+
+    useEffect(() => {
+        if (finalReport) {
+            console.log("CANVAS RECEIVED FINAL REPORT:", finalReport);
+        }
+    }, [finalReport]);
 
     useEffect(() => {
         if (!containerRef.current || !canvasRef.current) return;
@@ -72,6 +82,13 @@ const SimulationCanvas: React.FC = () => {
 
             <MetricsCharts metrics={lastMetrics} />
             <StatsOverlay metrics={lastMetrics} />
+
+            {finalReport && (
+                <FinalReportPopup
+                    report={finalReport}
+                    onClose={() => setFinalReport(null)}
+                />
+            )}
         </div>
     );
 };

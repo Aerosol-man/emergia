@@ -133,7 +133,7 @@ export class Renderer {
             }
 
             // 1. Size
-            const radius = 3 + Math.min(agent.tradeCount * 0.5, 10);
+            const radius = 6 + Math.min(agent.tradeCount * 0.5, 10);
 
             // 2. Color
             const color = this.colorScale(agent.trust);

@@ -26,7 +26,6 @@ class ConnectionManager:
     
     async def send_personal_message(self, message: dict, websocket: WebSocket):
         """Send message to specific client"""
-        print("MSG SENT")
         await websocket.send_json(message)
     
     async def broadcast(self, message: dict):

@@ -9,6 +9,7 @@ export interface Agent {
     skillPossessed: number;
     skillNeeded: number;
     tradeCount: number;
+    isCustom?: boolean;
 }
 
 export interface SimulationState {
@@ -45,4 +46,5 @@ export type ClientAction =
     | { type: 'start', payload: SimulationConfig }
     | { type: 'pause' }
     | { type: 'reset' }
-    | { type: 'update_config'; payload: Partial<SimulationConfig> };
+    | { type: 'update_config'; payload: Partial<SimulationConfig> }
+    | { type: 'add_agent'; payload: { trustQuota: number; trustGain: number; trustLoss: number } };

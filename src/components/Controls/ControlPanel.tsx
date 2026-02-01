@@ -3,13 +3,18 @@ import { ParameterSlider } from './ParameterSlider';
 import { ActionGroup } from './ActionGroup';
 import { Users, TrendingDown, ShieldCheck, ChevronDown, ChevronUp, Zap, UserPlus, Activity } from 'lucide-react';
 import { AgentMenu } from './AgentMenu'
+import { CustomAgentDisplay } from '../Dashboard/CustomAgentDisplay';
 import type { ClientAction, SimulationConfig } from '../../types/simulation';
 
 interface ControlPanelProps {
     sendAction: (action: ClientAction) => void;
+    agents?: any[]; // Avoiding full import cycle for now, or use type
 }
 
-export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
+export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction, agents = [] }) => {
+    // Debug Log
+    // console.log(`ControlPanel Render. Agents: ${agents.length}`);
+
     const [config, setConfig] = useState<SimulationConfig>({
         agentCount: 500,
         trustDecay: 0.05,
@@ -25,6 +30,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
     const [maximized, setMaximized] = useState(true);
     const [agentMenuOpen, setAgentMenuOpen] = useState(false);
     const [customAgentDisplayOpen, setCustomAgentDisplayOpen] = useState(false);
+
+    // Debug effect for state changes
+    React.useEffect(() => {
+        console.log("ControlPanel State:", { customAgentDisplayOpen, agentMenuOpen, agentsCount: agents.length });
+    }, [customAgentDisplayOpen, agentMenuOpen, agents.length]);
 
 
     const handleChange = (key: keyof SimulationConfig, value: number) => {
@@ -58,14 +68,14 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
             style={{
                 cursor: 'pointer',
                 padding: '0.5rem',
-                borderRadius: '50%', 
+                borderRadius: '50%',
                 background: 'var(--bg-accent-secondary)',
                 boxShadow: 'var(--shadow-md)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 flex: 0.015,
-        }}>
+            }}>
             {maximized ? <ChevronUp size={20} style={{ color: 'var(--color-text-primary)' }} /> : <ChevronDown size={20} style={{ color: 'var(--color-text-primary)' }} />}
         </div>
     );
@@ -224,11 +234,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
                     marginBottom: '1rem',
                 }}
             >
-                <div style={{ flex: 2.3, border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', fontSize: '0.9rem', fontWeight: 500, color: 'var(--color-text-primary)', flexDirection: 'row' }}>
-                    <Users size={16} style={{ marginRight: '0.5rem', color: 'var(--color-accent-primary)', flex: 1 }} />
-                    <div style={{flex: 2, padding: '0.5rem'}} >My Agents</div>
+                <div
+                    onClick={() => setCustomAgentDisplayOpen(!customAgentDisplayOpen)}
+                    style={{ flex: 2.3, border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', fontSize: '0.9rem', fontWeight: 500, color: 'var(--color-text-primary)', flexDirection: 'row', cursor: 'pointer', background: customAgentDisplayOpen ? 'var(--bg-accent-secondary)' : 'transparent' }}>
+                    <Users size={16} style={{ marginRight: '0.5rem', color: 'var(--color-accent-primary)', flex: 1, marginLeft: '0.5rem' }} />
+                    <div style={{ flex: 2, padding: '0.5rem' }} >My Agents</div>
                 </div>
-                { agentMenuOpen ? <AgentMenu onClose={() => setAgentMenuOpen(false)} /> : agentButton }
+                {agentMenuOpen ? <AgentMenu onClose={() => setAgentMenuOpen(false)} sendAction={sendAction} /> : agentButton}
             </div>
 
             <ActionGroup
@@ -238,7 +250,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
                 onReset={handleReset}
             />
 
-            {customAgentDisplayOpen ? null : sliders}
+            {customAgentDisplayOpen ? (
+                <CustomAgentDisplay agents={agents} />
+            ) : sliders}
 
             <div
                 style={{

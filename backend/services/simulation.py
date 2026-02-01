@@ -144,8 +144,45 @@ class SimulationEngine:
             decay = max(0.0, min(1.0, self.state.trust_decay))
             self.trust_engine.apply_decay(agents_dict, 1.0 - decay)
 
-        # ---- 6) Aggregate metrics ----
+    # ---- 6) Aggregate metrics ----
         self.state.update_metrics()
+
+
+    def add_custom_agent(self, params: dict):
+        """Add a single custom agent with specific parameters."""
+        if not self.state:
+            return
+
+        # Find new ID
+        new_id = 0
+        if self.state.agents:
+            new_id = max(self.state.agents.keys()) + 1
+        
+        # Parse params
+        quota = float(params.get("trustQuota", 0.5))
+        alpha = float(params.get("trustGain", 0.1)) # 'Gain' -> alpha
+        beta = float(params.get("trustLoss", 0.1))  # 'Loss' -> beta -- Correction, user UI says "Transaction Failure Loss". 
+                                                    # Usually beta is ~0.05 default.
+        
+        # Create random base agent
+        from models.agent import Agent
+        new_agent = Agent.create_random(
+            agent_id=new_id,
+            bounds=self.state.bounds,
+            trust_quota=quota
+        )
+        
+        # Apply custom social physics
+        new_agent.trust_alpha = alpha
+        new_agent.trust_beta = beta
+        new_agent.is_custom = True
+        
+        # Add to state
+        self.state.agents[new_id] = new_agent
+        self.state.agent_count += 1
+        
+        # Log or print for backend verification
+        print(f"Added Custom Agent {new_id}: Q={quota}, A={alpha}, B={beta}")
 
 
     def should_broadcast(self) -> bool:

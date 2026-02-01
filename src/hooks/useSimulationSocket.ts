@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import type { SimulationState, WebSocketMessage, ClientAction, SimulationConfig } from '../types/simulation';
+import type { SimulationState, ClientAction, SimulationConfig } from '../types/simulation';
 
 // Mock Data Generator for Dev Mode
 const createMockState = (tick: number, config: SimulationConfig, width: number, height: number): SimulationState => {
@@ -192,6 +192,7 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
     return {
         isConnected,
         lastMetrics,
+        agents: lastMetrics ? stateBuffer.current[stateBuffer.current.length - 1]?.agents || [] : [],
         stateBuffer,
         sendAction
     };

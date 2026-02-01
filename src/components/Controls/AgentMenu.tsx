@@ -1,16 +1,30 @@
 import React from 'react';
 import { ParameterSlider } from './ParameterSlider'
-import { Menu, Scale, TrendingDown, TrendingUp, UserPlus } from 'lucide-react';
+import { Scale, TrendingDown, TrendingUp, UserPlus } from 'lucide-react';
 
 interface AgentMenuProps {
     onClose: () => void;
+    sendAction: (action: any) => void;
 }
 
-export const AgentMenu: React.FC<AgentMenuProps> = ({ onClose }) => {
+export const AgentMenu: React.FC<AgentMenuProps> = ({ onClose, sendAction }) => {
     const [trustQuota, setTrustQuota] = React.useState(0.3);
     const [trustGain, setTrustGain] = React.useState(0.3);
     const [trustLoss, setTrustLoss] = React.useState(0.3);
-    
+
+    const handleAddAgent = () => {
+        sendAction({
+            type: 'add_agent',
+            payload: {
+                trustQuota,
+                trustGain,
+                trustLoss
+            }
+        });
+        // Optional: show feedback or close menu?
+        // For now, let's keep it open so they can spam-add agents if they want.
+    };
+
     return (
         <div className="glass-panel"
             style={{
@@ -33,7 +47,7 @@ export const AgentMenu: React.FC<AgentMenuProps> = ({ onClose }) => {
                 <div
                     onClick={onClose}
                     style={{ marginLeft: 'auto', cursor: 'pointer', fontSize: '1.2rem', fontWeight: 600, color: 'var(--color-text-secondary)' }}
-                    
+
                 >
                     &times;
                 </div>
@@ -64,6 +78,7 @@ export const AgentMenu: React.FC<AgentMenuProps> = ({ onClose }) => {
             />
 
             <button
+                onClick={handleAddAgent}
                 style={{
                     flex: 1,
                     display: 'flex',

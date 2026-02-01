@@ -141,6 +141,15 @@ async def websocket_endpoint(websocket: WebSocket):
                     if "speedMultiplier" in payload:
                         update_dict["dt"] = 0.016 * payload["speedMultiplier"]
                     sim_engine.update_parameters(update_dict)
+                
+                elif cmd_type == "add_agent":
+                    try:
+                        print("Processing ADD_AGENT...")
+                        payload = data.get("payload", {})
+                        sim_engine.add_custom_agent(payload)
+                        print("ADD_AGENT processed successfully.")
+                    except Exception as e:
+                        print(f"Error processing ADD_AGENT: {e}")
 
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)

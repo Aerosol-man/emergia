@@ -121,7 +121,6 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
             setLastMetrics(newState.metrics);
         }
     }, []);
-
     useEffect(() => {
         if (isMock) {
             setIsConnected(true);

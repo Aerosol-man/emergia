@@ -135,7 +135,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 label="Trust Decay"
                 icon={TrendingDown}
                 value={activeConfig?.trustDecay ?? config.trustDecay}
-                min={0} max={0.2} step={0.001}
+                min={0} max={1.0} step={0.01}
                 onChange={(v) => handleGroupConfigChange('trustDecay', v)}
             />
             <ParameterSlider
@@ -149,7 +149,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 label="Simulation Speed"
                 icon={Zap}
                 value={activeConfig?.speedMultiplier ?? config.speedMultiplier}
-                min={0.1} max={5.0} step={0.1}
+                min={0.1} max={20.0} step={0.1}
                 unit="x"
                 onChange={(v) => handleGroupConfigChange('speedMultiplier', v)}
             />
@@ -157,14 +157,14 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                 label="Good Trade Stickiness"
                 icon={ShieldCheck}
                 value={config.softSeparation}
-                min={0.1} max={3.0} step={0.1}
+                min={0.1} max={100.0} step={0.1}
                 onChange={(v) => handleChange('softSeparation', v)}
             />
             <ParameterSlider
                 label="Bad Trade Repulsion"
                 icon={Activity}
                 value={config.hardSeparation}
-                min={1.0} max={12.0} step={0.5}
+                min={1.0} max={100.0} step={0.5}
                 onChange={(v) => handleChange('hardSeparation', v)}
             />
         </div>

@@ -12,9 +12,6 @@ const SimulationCanvas: React.FC = () => {
 
     const { stateBuffer, isConnected, sendAction, lastMetrics, agents } = useSimulationSocket();
 
-    // Debug
-    // console.log(`SimulationCanvas: Agents received: ${agents?.length}`);
-
     useEffect(() => {
         if (!containerRef.current || !canvasRef.current) return;
 

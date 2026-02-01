@@ -31,11 +31,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction, agents =
     const [agentMenuOpen, setAgentMenuOpen] = useState(false);
     const [customAgentDisplayOpen, setCustomAgentDisplayOpen] = useState(false);
 
-    // Debug effect for state changes
-    React.useEffect(() => {
-        console.log("ControlPanel State:", { customAgentDisplayOpen, agentMenuOpen, agentsCount: agents.length });
-    }, [customAgentDisplayOpen, agentMenuOpen, agents.length]);
-
 
     const handleChange = (key: keyof SimulationConfig, value: number) => {
         const newConfig = { ...config, [key]: value };

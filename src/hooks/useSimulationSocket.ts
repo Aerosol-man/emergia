@@ -77,7 +77,6 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
             setLastMetrics(newState.metrics);
         }
     }, []);
-
     useEffect(() => {
         if (isMock) {
             console.log('Starting Mock Simulation Mode');
@@ -188,11 +187,11 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
             console.warn('[WS] Cannot send, socket not open. readyState:', socket?.readyState);
         }
     }, [isMock, handleStateUpdate]);
-
     return {
         isConnected,
         lastMetrics,
-        agents: lastMetrics ? stateBuffer.current[stateBuffer.current.length - 1]?.agents || [] : [],
+        // decoupled agents from lastMetrics for testing
+        agents: stateBuffer.current.length > 0 ? stateBuffer.current[stateBuffer.current.length - 1].agents : [],
         stateBuffer,
         sendAction
     };

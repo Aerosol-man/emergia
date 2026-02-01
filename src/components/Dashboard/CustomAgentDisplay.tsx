@@ -11,8 +11,6 @@ export const CustomAgentDisplay: React.FC<CustomAgentDisplayProps> = ({ agents =
         return a.isCustom;
     });
 
-    console.log(`CustomAgentDisplay rendering. Total agents: ${agents.length}, Custom: ${customAgents.length}`);
-
     return (
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {customAgents.length === 0 ? (

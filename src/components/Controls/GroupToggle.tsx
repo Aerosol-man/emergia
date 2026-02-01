@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye } from 'lucide-react';
 
 const MAX_GROUPS = 5;
 
@@ -8,15 +8,19 @@ interface GroupToggleProps {
     existingGroupIds: number[];
     visibleGroupIds: Set<number>;
     onSwitchGroup: (groupId: number) => void;
-    onToggleVisibility: (groupId: number) => void;
+    // onToggleVisibility: (groupId: number) => void; // Unused now
+    highlightedGroupId: number | null;
+    onToggleHighlight: (groupId: number) => void;
 }
 
 export const GroupToggle: React.FC<GroupToggleProps> = ({
     activeGroupId,
     existingGroupIds,
-    visibleGroupIds,
+    visibleGroupIds, // Kept for now if we want to show visibility state in future, but could remove
     onSwitchGroup,
-    onToggleVisibility,
+    // onToggleVisibility,
+    highlightedGroupId,
+    onToggleHighlight,
 }) => {
     const groupIds = Array.from({ length: MAX_GROUPS }, (_, i) => i);
 
@@ -33,7 +37,7 @@ export const GroupToggle: React.FC<GroupToggleProps> = ({
             {groupIds.map((gid) => {
                 const exists = existingGroupIds.includes(gid);
                 const isActive = gid === activeGroupId;
-                const isVisible = visibleGroupIds.has(gid);
+                // const isVisible = visibleGroupIds.has(gid);
 
                 return (
                     <div
@@ -79,12 +83,12 @@ export const GroupToggle: React.FC<GroupToggleProps> = ({
                             G{gid}
                         </button>
 
-                        {/* Visibility toggle */}
+                        {/* Highlight toggle (replaces visibility) */}
                         {exists && (
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    onToggleVisibility(gid);
+                                    onToggleHighlight(gid);
                                 }}
                                 style={{
                                     display: 'flex',
@@ -94,17 +98,17 @@ export const GroupToggle: React.FC<GroupToggleProps> = ({
                                     border: 'none',
                                     background: 'transparent',
                                     cursor: 'pointer',
-                                    color: isVisible
-                                        ? (isActive ? 'rgba(255,255,255,0.9)' : 'var(--color-text-secondary, #aaa)')
-                                        : 'var(--color-text-muted, #555)',
-                                    opacity: isVisible ? 1 : 0.5,
-                                    transition: 'opacity 0.15s ease',
+                                    color: highlightedGroupId === gid
+                                        ? '#a855f7' // Purple when highlighted
+                                        : 'var(--color-text-secondary, #aaa)',
+                                    opacity: 1, // Always fully opaque to show it's interactable
+                                    transition: 'color 0.15s ease',
                                 }}
-                                title={isVisible ? `Hide Group ${gid}` : `Show Group ${gid}`}
+                                title={highlightedGroupId === gid ? `Remove Highlight from Group ${gid}` : `Highlight Group ${gid}`}
                             >
-                                {isVisible
-                                    ? <Eye size={12} />
-                                    : <EyeOff size={12} />
+                                {highlightedGroupId === gid
+                                    ? <Eye size={12} style={{ fill: 'currentColor' }} /> // Filled eye when highlighted
+                                    : <Eye size={12} />
                                 }
                             </button>
                         )}

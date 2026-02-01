@@ -13,6 +13,11 @@ export class Renderer {
     // Animation State
     private flashEvents = new Map<number, number>(); // agentId -> timestamp
     private readonly FLASH_DURATION = 300; // ms
+    private highlightedGroupId: number | null = null;
+
+    public setHighlightedGroupId(id: number | null) {
+        this.highlightedGroupId = id;
+    }
 
     // Scales
     private colorScale = d3.scaleLinear<string>()
@@ -133,7 +138,7 @@ export class Renderer {
             }
 
             // 1. Size
-            const radius = 3 + Math.min(agent.tradeCount * 0.5, 10);
+            const radius = 6 + Math.min(agent.tradeCount * 0.5, 10);
 
             // 2. Color
             const color = this.colorScale(agent.trust);
@@ -144,6 +149,17 @@ export class Renderer {
                 ctx.shadowColor = color;
             } else {
                 ctx.shadowBlur = 0;
+            }
+
+            // Highlighting Override
+            if (this.highlightedGroupId !== null && agent.groupId === this.highlightedGroupId) {
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#a855f7'; // Purple glow
+                ctx.strokeStyle = '#a855f7';
+                ctx.lineWidth = 2;
+            } else if (this.highlightedGroupId !== null) {
+                // Dim others
+                ctx.globalAlpha = 0.3;
             }
 
             // Draw Agent Body (Shape based on Group ID)
@@ -178,6 +194,15 @@ export class Renderer {
             }
 
             ctx.fill();
+
+            // Reset Highlighting
+            if (this.highlightedGroupId !== null && agent.groupId === this.highlightedGroupId) {
+                ctx.stroke(); // Draw the border
+                ctx.strokeStyle = 'transparent';
+                ctx.lineWidth = 0;
+            } else if (this.highlightedGroupId !== null) {
+                ctx.globalAlpha = 1.0;
+            }
 
             // 4. Flash Animation
             if (this.flashEvents.has(agent.id)) {

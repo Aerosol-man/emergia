@@ -62,7 +62,7 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
     const stateBuffer = useRef<SimulationState[]>([]);
     const allAgentsRef = useRef<SimulationState['agents']>([]);
     const socketRef = useRef<WebSocket | null>(null);
-    
+
 
     const mockIntervalRef = useRef<number | null>(null);
     const mockConfigRef = useRef<SimulationConfig>({
@@ -165,7 +165,7 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
                     if (!stateBuffer.current.length || stateBuffer.current.length < 3) {
                         console.log('[WS] Received:', data.type, 'agents:', data.payload?.agents?.length);
                     }
-                    
+
                     if (data.type === 'report_final' && data.payload?.final_report) {
                         console.log('[WS] Final report received:');
                         console.log(data.payload?.final_report);
@@ -272,5 +272,7 @@ export const useSimulationSocket = (url: string = 'ws://localhost:8000/ws') => {
         createGroup,
         updateGroupConfig,
         toggleGroupVisibility,
+        finalReport,
+        setFinalReport,
     };
 };

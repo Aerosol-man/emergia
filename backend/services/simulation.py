@@ -70,7 +70,7 @@ class SimulationEngine:
 
     def _ensure_state(self, trust_decay: float = 0.05, trust_quota: float = 0.3):
         """Create empty state container if it doesn't exist yet."""
-        self.state.report_interval_ticks = self.report_interval_ticks
+        self.state.report_interval_ticks = self.state.report_interval_ticks
 
         if not self.state:
             self.state = SimulationState(

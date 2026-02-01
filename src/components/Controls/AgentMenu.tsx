@@ -10,7 +10,7 @@ export const AgentMenu: React.FC<AgentMenuProps> = ({ onClose }) => {
     const [trustQuota, setTrustQuota] = React.useState(0.3);
     const [trustGain, setTrustGain] = React.useState(0.3);
     const [trustLoss, setTrustLoss] = React.useState(0.3);
-
+    
     return (
         <div className="glass-panel"
             style={{

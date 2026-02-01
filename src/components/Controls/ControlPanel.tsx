@@ -24,6 +24,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
     const [isRunning, setIsRunning] = useState(false);
     const [maximized, setMaximized] = useState(true);
     const [agentMenuOpen, setAgentMenuOpen] = useState(false);
+    const [customAgentDisplayOpen, setCustomAgentDisplayOpen] = useState(false);
+
 
     const handleChange = (key: keyof SimulationConfig, value: number) => {
         const newConfig = { ...config, [key]: value };
@@ -62,7 +64,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                flex: 0.25
+                flex: 0.015,
         }}>
             {maximized ? <ChevronUp size={20} style={{ color: 'var(--color-text-primary)' }} /> : <ChevronDown size={20} style={{ color: 'var(--color-text-primary)' }} />}
         </div>
@@ -71,8 +73,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
     const agentButton = (
         <div
             onClick={() => setAgentMenuOpen(true)}
-            style={{ cursor: 'pointer', flex: .3, margin: '0.5rem', padding: '0.5rem', borderRadius: '5%', background: 'var(--bg-accent-secondary)', boxShadow: 'var(--shadow-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.5rem' }}>
-            <UserPlus size={20} style={{ color: 'var(--color-text-primary)' }} />
+            style={{ cursor: 'pointer', flex: .3, margin: '0.5rem', padding: '0.5rem', borderRadius: '5%', background: 'var(--bg-accent-tertiary)', color: 'var(--color-text-secondary)', boxShadow: 'var(--shadow-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.5rem' }}>
+            <UserPlus size={20} />
         </div>
     );
 
@@ -93,6 +95,85 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
             }}
         >
             {toggleButton}
+        </div>
+    );
+
+    const sliders = (
+        <div style={{ flex: 1, overflowY: 'auto' }}>
+            <h3
+                style={{
+                    fontSize: '0.75rem',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    color: 'var(--color-text-muted)',
+                    marginBottom: '1rem'
+                }}
+            >
+                Parameters
+            </h3>
+
+            <ParameterSlider
+                label="Agent Count"
+                icon={Users}
+                value={config.agentCount}
+                min={10}
+                max={5000}
+                step={10}
+                onChange={(v) => handleChange('agentCount', v)}
+            />
+
+            <ParameterSlider
+                label="Trust Decay"
+                icon={TrendingDown}
+                value={config.trustDecay}
+                min={0}
+                max={0.2}
+                step={0.001}
+                onChange={(v) => handleChange('trustDecay', v)}
+            />
+
+            <ParameterSlider
+                label="Trust Quota"
+                icon={ShieldCheck}
+                value={config.trustQuota}
+                min={0}
+                max={1}
+                step={0.05}
+                onChange={(v) => handleChange('trustQuota', v)}
+            />
+
+            <ParameterSlider
+                label="Simulation Speed"
+                icon={Zap}
+                value={config.speedMultiplier}
+                min={0.1}
+                max={5.0}
+                step={0.1}
+                unit="x"
+                onChange={(v) => handleChange('speedMultiplier', v)}
+            />
+
+            {/* 🔥 NEW — SOCIAL PHYSICS CONTROLS */}
+
+            <ParameterSlider
+                label="Good Trade Stickiness"
+                icon={ShieldCheck}
+                value={config.softSeparation}
+                min={0.1}
+                max={3.0}
+                step={0.1}
+                onChange={(v) => handleChange('softSeparation', v)}
+            />
+
+            <ParameterSlider
+                label="Bad Trade Repulsion"
+                icon={Activity}
+                value={config.hardSeparation}
+                min={1.0}
+                max={12.0}
+                step={0.5}
+                onChange={(v) => handleChange('hardSeparation', v)}
+            />
         </div>
     );
 
@@ -143,7 +224,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
                     marginBottom: '1rem',
                 }}
             >
-                <div style={{ flex: 1, border: '1px solid var(--border-subtle)', borderRadius: '5%', display: 'flex', alignItems: 'center', fontSize: '0.9rem', fontWeight: 500, color: 'var(--color-text-primary)', flexDirection: 'row' }}>
+                <div style={{ flex: 2.3, border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', fontSize: '0.9rem', fontWeight: 500, color: 'var(--color-text-primary)', flexDirection: 'row' }}>
                     <Users size={16} style={{ marginRight: '0.5rem', color: 'var(--color-accent-primary)', flex: 1 }} />
                     <div style={{flex: 2, padding: '0.5rem'}} >My Agents</div>
                 </div>
@@ -157,82 +238,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({ sendAction }) => {
                 onReset={handleReset}
             />
 
-            <div style={{ flex: 1, overflowY: 'auto' }}>
-                <h3
-                    style={{
-                        fontSize: '0.75rem',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        color: 'var(--color-text-muted)',
-                        marginBottom: '1rem'
-                    }}
-                >
-                    Parameters
-                </h3>
-
-                <ParameterSlider
-                    label="Agent Count"
-                    icon={Users}
-                    value={config.agentCount}
-                    min={10}
-                    max={5000}
-                    step={10}
-                    onChange={(v) => handleChange('agentCount', v)}
-                />
-
-                <ParameterSlider
-                    label="Trust Decay"
-                    icon={TrendingDown}
-                    value={config.trustDecay}
-                    min={0}
-                    max={0.2}
-                    step={0.001}
-                    onChange={(v) => handleChange('trustDecay', v)}
-                />
-
-                <ParameterSlider
-                    label="Trust Quota"
-                    icon={ShieldCheck}
-                    value={config.trustQuota}
-                    min={0}
-                    max={1}
-                    step={0.05}
-                    onChange={(v) => handleChange('trustQuota', v)}
-                />
-
-                <ParameterSlider
-                    label="Simulation Speed"
-                    icon={Zap}
-                    value={config.speedMultiplier}
-                    min={0.1}
-                    max={5.0}
-                    step={0.1}
-                    unit="x"
-                    onChange={(v) => handleChange('speedMultiplier', v)}
-                />
-
-                {/* 🔥 NEW — SOCIAL PHYSICS CONTROLS */}
-
-                <ParameterSlider
-                    label="Good Trade Stickiness"
-                    icon={ShieldCheck}
-                    value={config.softSeparation}
-                    min={0.1}
-                    max={3.0}
-                    step={0.1}
-                    onChange={(v) => handleChange('softSeparation', v)}
-                />
-
-                <ParameterSlider
-                    label="Bad Trade Repulsion"
-                    icon={Activity}
-                    value={config.hardSeparation}
-                    min={1.0}
-                    max={12.0}
-                    step={0.5}
-                    onChange={(v) => handleChange('hardSeparation', v)}
-                />
-            </div>
+            {customAgentDisplayOpen ? null : sliders}
 
             <div
                 style={{
